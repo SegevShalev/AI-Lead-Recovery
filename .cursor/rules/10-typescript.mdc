@@ -1,0 +1,10 @@
+---
+description: TypeScript conventions
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+- Use strict TypeScript.
+- Prefer explicit domain types and Zod validation at boundaries.
+- Avoid `any`; if unavoidable, isolate and document it.
+- Keep controllers thin and domain logic testable.
+- Prefer async/await.

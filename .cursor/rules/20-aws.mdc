@@ -1,0 +1,10 @@
+---
+description: AWS and infrastructure rules
+globs: "infra/**/*"
+alwaysApply: false
+---
+- Infrastructure is code-reviewed like application code.
+- Use least-privilege IAM.
+- Tag resources with project and environment.
+- Do not put secrets in CDK source.
+- Keep dev infrastructure inexpensive.

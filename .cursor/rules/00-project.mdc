@@ -1,0 +1,11 @@
+---
+description: Core project rules
+alwaysApply: true
+---
+- Read AGENTS.md before making architectural changes.
+- Prefer small vertical slices.
+- Do not add services, databases, queues, or frameworks without a documented reason.
+- Keep external providers behind adapters.
+- Redis is never the source of truth.
+- SQS consumers must be idempotent.
+- Never commit secrets.
