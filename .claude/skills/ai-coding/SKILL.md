@@ -1,3 +1,8 @@
+---
+name: ai-coding
+description: Rules for implementing AI features or changing AI-facing contracts - schema-first design, output validation, prompt versioning, no chain-of-thought storage. Use when writing or editing code that calls an LLM or defines model input/output contracts in this project.
+---
+
 # Skill: AI Coding
 
 ## Use when

@@ -1,3 +1,8 @@
+---
+name: aws-infrastructure
+description: Conventions for this project's AWS infrastructure - CDK, ECS Fargate, ALB, SQS, ElastiCache Redis, ECR, CloudWatch, IAM, networking. Use when creating or modifying CDK constructs or other infrastructure code.
+---
+
 # Skill: AWS Infrastructure
 
 ## Use when

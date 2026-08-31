@@ -1,3 +1,8 @@
+---
+name: microservices
+description: Service boundary and event-contract rules for this project - ownership, contract-based communication, event envelope fields, idempotent consumers, eventual consistency, correlation IDs. Use when designing or modifying services, async events, or cross-service communication.
+---
+
 # Skill: Microservices
 
 ## Rules

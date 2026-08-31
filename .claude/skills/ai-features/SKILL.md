@@ -1,3 +1,8 @@
+---
+name: ai-features
+description: Quality bar for this project's AI-generated customer-facing content, e.g. the Hebrew-first follow-up suggestion for a detected recovery case. Use when writing prompts or reviewing model output for tone, factuality, and structured-field constraints.
+---
+
 # Skill: AI Features
 
 ## Initial feature
