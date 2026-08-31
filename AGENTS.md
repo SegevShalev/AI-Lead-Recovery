@@ -15,6 +15,7 @@ Before implementation, read:
 - `docs/architecture/aws-infrastructure.md`
 - `docs/architecture/ai-architecture.md`
 - `docs/development/roadmap.md`
+- `docs/development/branching-and-versioning.md`
 - relevant `.cursor/rules/*`
 - relevant `skills/*/SKILL.md`
 
