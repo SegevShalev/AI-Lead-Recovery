@@ -8,7 +8,7 @@ export interface ThreadMessage {
 }
 
 export interface Lead {
-  id: number;
+  id: string;
   name: string;
   vehicle: string;
   phone: string;
@@ -31,7 +31,7 @@ export interface Bucket {
 // Fake data for Phase 1 UI work — replace with real API data once services/api exposes leads.
 export const LEADS: Lead[] = [
   {
-    id: 1,
+    id: "1",
     name: "Marcus Whitfield",
     vehicle: "2019 Ford Transit · brake job",
     phone: "+1 (416) 555-0142",
@@ -66,7 +66,7 @@ export const LEADS: Lead[] = [
       "Hi Marcus — following up on the front brake service for the Transit ($1,840). Warped rotors get worse fast, and I'd rather catch it before it takes the calipers with it. I've still got Thursday morning open this week if you want it. Want me to hold the slot?",
   },
   {
-    id: 2,
+    id: "2",
     name: "Priya Raghunathan",
     vehicle: "2021 Honda CR-V · winter tires",
     phone: "+1 (416) 555-0198",
@@ -87,7 +87,7 @@ export const LEADS: Lead[] = [
       "Hi Priya — sorry for the slow reply, that one slipped past us. Four winter tires mounted and balanced for the CR-V runs $1,120 all in, and yes, we store your summer set for $80 a season. Booking early beats the November rush — want me to put you down for a morning next week?",
   },
   {
-    id: 3,
+    id: "3",
     name: "Devon Ackerley",
     vehicle: "2016 RAM 1500 · transmission",
     phone: "+1 (416) 555-0177",
@@ -118,7 +118,7 @@ export const LEADS: Lead[] = [
       "Hi Devon — thinking about your RAM. I can do the rebuild in two stages: valve body and solenoids now at $1,400, then the full rebuild later if it keeps slipping. We also do 12-month financing at 0% on jobs over $2,000. Which of those works better for you?",
   },
   {
-    id: 4,
+    id: "4",
     name: "Sandra Oyelaran",
     vehicle: "2018 Toyota Corolla · oil + service",
     phone: "+1 (416) 555-0163",
@@ -139,7 +139,7 @@ export const LEADS: Lead[] = [
       "Hi Sandra — the Corolla is about three months overdue for its oil change based on your usual schedule. I've got Tuesday and Wednesday afternoon open this week and can have you out in 45 minutes. Want one of those?",
   },
   {
-    id: 5,
+    id: "5",
     name: "Tomasz Wierzbicki",
     vehicle: "2020 Subaru Outback · suspension",
     phone: "+1 (416) 555-0121",
@@ -169,7 +169,7 @@ export const LEADS: Lead[] = [
       "Hi Tomasz — here's the breakdown you asked for: struts $980, sway bar links $240, labour $860, alignment $180. Total $2,260, one day in the shop. The clunk won't hurt anything short term but it'll chew through your front tires. Want me to book it in?",
   },
   {
-    id: 6,
+    id: "6",
     name: "Elena Ferraro",
     vehicle: "2017 VW Golf · A/C repair",
     phone: "+1 (416) 555-0154",
@@ -189,7 +189,7 @@ export const LEADS: Lead[] = [
       "Hi Elena — yes, we can take the Golf this week. If it's warm again a year on, there's likely a slow leak rather than just low refrigerant, so we'd dye-test it first ($120, credited against the repair). Thursday or Friday morning?",
   },
   {
-    id: 7,
+    id: "7",
     name: "Ray Okonkwo Contracting",
     vehicle: "Fleet · 4 vehicles",
     phone: "+1 (416) 555-0188",
@@ -214,7 +214,7 @@ export const LEADS: Lead[] = [
       "Hi Ray — you mentioned bringing the other two vans in last quarter. We've got capacity the week of the 8th and can do both in two days so you're never down more than one vehicle. Same fleet rate as March. Want me to pencil it in?",
   },
   {
-    id: 8,
+    id: "8",
     name: "Nadia Brant",
     vehicle: "2022 Kia Sportage · warranty service",
     phone: "+1 (416) 555-0135",

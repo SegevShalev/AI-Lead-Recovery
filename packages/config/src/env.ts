@@ -9,6 +9,7 @@ export const envSchema = z.object({
   SQS_QUEUE_URL: z.string().optional(),
   AI_PROVIDER: z.enum(["mock", "openai", "anthropic", "bedrock"]).default("mock"),
   AI_API_KEY: z.string().optional(),
+  UNANSWERED_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(60),
 });
 export type Env = z.infer<typeof envSchema>;
 
