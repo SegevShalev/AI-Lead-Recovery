@@ -2,8 +2,6 @@
 
 **Status:** Draft v0.1 **Owners:** Erez, Segev **Date:** August 31, 2026 **Market:** Israel (Hebrew-first), SMB verticals
 
-
-
 ---
 
 ## 1. Executive Summary
@@ -147,11 +145,11 @@ Each line item should be clickable and drill into: customer name, channel, last 
 - **Alternative / complementary model:** pricing tied to leads recovered (e.g., a fee per confirmed "won" lead, or a hybrid base fee + success fee).
 - **Why this pricing story works:** ROI is easy to demonstrate — if the product recovers even one ₪2,000 customer, a ₪300/month fee is a trivial comparison. This should be the core of the sales narrative, not the feature set.
 
-*(These are directional starting points from the original concept, not validated numbers — worth testing directly with early customers.)*
+_(These are directional starting points from the original concept, not validated numbers — worth testing directly with early customers.)_
 
 ## 12. High-Level Technical Considerations
 
-*(For discussion in the planning/architecture phase — not final decisions.)*
+_(For discussion in the planning/architecture phase — not final decisions.)_
 
 - **Stack fit:** aligns naturally with a MERN-based build (Node/Express backend, MongoDB for conversation/lead storage, React frontend for the dashboard).
 - **WhatsApp ingestion:** requires either the official WhatsApp Business Platform API, or integration with a BSP (Business Solution Provider) / existing tool the business already uses — needs research into access requirements and cost.
@@ -177,6 +175,4 @@ Each line item should be clickable and drill into: customer name, channel, last 
 
 ---
 
-
-
-*This document reflects the initial concept as defined by Erez and Segev and is intended as a living draft to be refined through the planning and design phases.*
+_This document reflects the initial concept as defined by Erez and Segev and is intended as a living draft to be refined through the planning and design phases._

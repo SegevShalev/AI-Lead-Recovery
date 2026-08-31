@@ -1,10 +1,13 @@
 # Skill: AI Features
 
 ## Initial feature
+
 Hebrew-first follow-up suggestion for a detected recovery case.
 
 ## Quality bar
+
 The model should:
+
 - be concise
 - reference the actual situation
 - avoid inventing facts

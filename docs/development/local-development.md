@@ -11,6 +11,7 @@
 ## Local services
 
 Docker Compose should provide:
+
 - MongoDB
 - Redis
 
@@ -23,6 +24,7 @@ Optional: LocalStack may be introduced if it genuinely improves AWS integration 
 Commit `.env.example`, never `.env`.
 
 Expected values will eventually include:
+
 - `MONGODB_URI`
 - `REDIS_URL`
 - `QUEUE_PROVIDER=local|sqs`

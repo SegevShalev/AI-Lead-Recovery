@@ -9,11 +9,13 @@ The PRD describes a Hebrew-first, WhatsApp-first system that identifies stalled 
 ## Architecture
 
 Three services:
+
 - `api` — synchronous product API and core persistence boundary
 - `recovery-worker` — asynchronous microservice for deterministic recovery detection
 - `ai-service` — internal AI/RAG service
 
 Core infrastructure:
+
 - MongoDB — source of truth
 - Redis — cache, idempotency, short-lived coordination, later semantic cache
 - SQS + DLQ — durable async work
@@ -21,6 +23,7 @@ Core infrastructure:
 - CDK — infrastructure as code
 
 AI roadmap:
+
 1. structured generation
 2. embeddings + RAG
 3. hybrid retrieval
@@ -34,6 +37,7 @@ AI roadmap:
 Start with `AGENTS.md`, then the architecture docs and `prompts/bootstrap.md`.
 
 The project intentionally avoids both extremes:
+
 - not a monolith pretending to be cloud-native
 - not dozens of microservices for architecture theater
 

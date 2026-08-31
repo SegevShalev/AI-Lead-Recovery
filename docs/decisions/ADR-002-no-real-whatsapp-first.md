@@ -1,6 +1,7 @@
 # ADR-002: Mock WhatsApp before real WhatsApp
 
 ## Status
+
 Accepted
 
 The first implementation uses a WhatsApp-shaped webhook adapter and seeded/demo messages.

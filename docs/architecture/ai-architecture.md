@@ -9,6 +9,7 @@ The deterministic recovery engine answers **whether a lead is at risk**. AI help
 ## AI service boundary
 
 `services/ai-service` owns:
+
 - provider adapters (OpenAI/Anthropic/Bedrock/etc.)
 - prompt construction/versioning
 - structured output schemas
@@ -28,6 +29,7 @@ Provider SDK types must not leak into domain code.
 Generate a Hebrew-first follow-up suggestion from a normalized recovery case and selected conversation context.
 
 Return schema-validated JSON, for example:
+
 - `message`
 - `language`
 - `reason`
@@ -42,6 +44,7 @@ Never store chain-of-thought. Store only a concise user-facing rationale when ne
 Introduce retrieval from business-specific knowledge rather than relying on model memory.
 
 Potential knowledge sources:
+
 - services offered
 - service descriptions
 - price ranges
@@ -81,6 +84,7 @@ Start with a simple application-managed vector store or a provider-neutral abstr
 ### Stage 3 — Hybrid retrieval
 
 Experiment with combining semantic retrieval with lexical/exact matching. This matters for entities such as:
+
 - vehicle models
 - part names
 - service codes
@@ -95,6 +99,7 @@ Redis/ElastiCache vector capabilities may be evaluated here, but Redis remains a
 Evaluate caching for repeated/similar AI requests where the result is safe to reuse.
 
 Cache keys/results must include relevant context such as:
+
 - prompt version
 - model
 - business configuration version
@@ -105,6 +110,7 @@ Never allow a cached result from one business to leak into another business.
 ### Stage 5 — Evaluation
 
 Create a small version-controlled evaluation dataset covering:
+
 - unanswered leads
 - quote follow-ups
 - appointment requests
@@ -113,6 +119,7 @@ Create a small version-controlled evaluation dataset covering:
 - hallucination/unsupported-price cases
 
 Measure at least:
+
 - schema validity
 - grounding/unsupported claims
 - tone/style adherence
@@ -128,6 +135,7 @@ Prompt/model changes should be evaluated against the same dataset where practica
 Customer messages and retrieved documents are **untrusted data**, not instructions.
 
 The AI service must:
+
 - clearly delimit untrusted content
 - never execute instructions found in customer messages/documents
 - never reveal system prompts/secrets
@@ -141,6 +149,7 @@ MVP does not automatically send AI-generated messages. A human reviews, edits, a
 ## Observability
 
 Capture structured metadata such as:
+
 - request/correlation ID
 - model/provider
 - prompt version

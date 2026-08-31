@@ -62,13 +62,7 @@ export const recoveryCaseTypeSchema = z.enum([
 ]);
 export type RecoveryCaseType = z.infer<typeof recoveryCaseTypeSchema>;
 
-export const recoveryCaseStatusSchema = z.enum([
-  "open",
-  "handled",
-  "won",
-  "lost",
-  "no_response",
-]);
+export const recoveryCaseStatusSchema = z.enum(["open", "handled", "won", "lost", "no_response"]);
 export type RecoveryCaseStatus = z.infer<typeof recoveryCaseStatusSchema>;
 
 export const recoveryCaseSchema = z.object({

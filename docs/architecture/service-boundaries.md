@@ -3,6 +3,7 @@
 ## `apps/web`
 
 Owns:
+
 - dashboard UI
 - recovery-case interaction
 - human approval/editing of AI suggestions
@@ -12,6 +13,7 @@ Does not own persistence or AI provider calls.
 ## `services/api`
 
 Owns:
+
 - HTTP API
 - minimal/dev auth boundary
 - webhook ingestion adapter boundary
@@ -21,6 +23,7 @@ Owns:
 - calling AI Service
 
 Important initial endpoints:
+
 - `POST /dev/webhooks/whatsapp`
 - `GET /api/dashboard`
 - `GET /api/recovery-cases`
@@ -32,6 +35,7 @@ Important initial endpoints:
 Required microservice.
 
 Owns:
+
 - recovery rule evaluation
 - recovery-case creation/update
 - scheduled/background processing
@@ -39,9 +43,11 @@ Owns:
 Consumes versioned SQS events. It must not depend on API process memory.
 
 First rule:
+
 - unanswered inbound message
 
 Later rules:
+
 - quote without response
 - appointment without confirmation
 - dormant repeat customer
@@ -53,6 +59,7 @@ Implement rules behind a small explicit rule interface; do not over-generalize p
 Internal AI microservice.
 
 Owns:
+
 - LLM provider adapter
 - prompt templates/versioning
 - structured output validation
@@ -66,6 +73,7 @@ Example endpoint:
 `POST /internal/suggestions`
 
 Optional future internal endpoints:
+
 - `POST /internal/embeddings`
 - `POST /internal/retrieve`
 - `POST /internal/evals/run`
@@ -93,6 +101,7 @@ Consumers must use `eventId` for idempotency.
 ## Redis usage
 
 Use Redis for:
+
 - dashboard aggregate caching with TTL
 - idempotency keys
 - short-lived locks

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().positive().optional(),
   MONGODB_URI: z.string().min(1),
   REDIS_URL: z.string().min(1),
   QUEUE_PROVIDER: z.enum(["local", "sqs"]).default("local"),

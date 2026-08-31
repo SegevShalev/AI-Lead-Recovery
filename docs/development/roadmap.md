@@ -80,6 +80,7 @@ Then experiment with hybrid lexical + semantic retrieval.
 ## Phase 6 — AWS deployment
 
 CDK provisions:
+
 - VPC
 - ECR
 - ECS/Fargate
@@ -95,6 +96,7 @@ Deploy API, Recovery Worker and AI Service as separate ECS services.
 ## Phase 7 — Event-driven expansion
 
 Only if useful:
+
 - EventBridge domain events
 - notifications consumer
 - analytics consumer
@@ -107,6 +109,7 @@ Research and implement the official WhatsApp Business Platform/BSP path after th
 ## Phase 9 — Advanced experiments
 
 Optional:
+
 - reranking
 - agentic workflows where genuinely useful
 - GraphRAG/knowledge graphs

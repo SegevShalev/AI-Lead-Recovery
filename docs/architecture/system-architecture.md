@@ -3,6 +3,7 @@
 ## Decision summary
 
 Use a TypeScript monorepo with:
+
 - React + Vite frontend
 - Node.js + Express API service
 - Node.js + TypeScript Recovery Worker microservice
@@ -69,6 +70,7 @@ API ─────► AI Service
 ## Why microservices here?
 
 This is intentionally a learning project, so the boundaries should teach real concepts:
+
 - synchronous vs asynchronous communication
 - queue retries and DLQs
 - idempotency
@@ -85,6 +87,7 @@ Do not create additional services until there is a concrete ownership, scaling, 
 SQS is the primary durable work queue.
 
 Later, introduce EventBridge for domain events when multiple independent consumers make that useful, for example:
+
 - `LeadRecovered`
 - `RecoveryCaseCreated`
 - `FollowupGenerated`
@@ -94,6 +97,7 @@ Do not introduce EventBridge before there is a real fan-out use case.
 ## Data ownership
 
 MongoDB is shared infrastructure initially, but ownership is explicit:
+
 - API owns Business/Customer/Conversation/Message persistence.
 - Recovery Worker owns RecoveryCase persistence.
 - AI Service should not become the source of truth for product data.
@@ -108,6 +112,7 @@ The core application must run without AWS credentials.
 
 ## Production target
 
+```text
 Internet → ALB → API → MongoDB
                          │
                          ├→ SQS → Recovery Worker
@@ -115,6 +120,7 @@ Internet → ALB → API → MongoDB
                          │             └→ Redis
                          │
                          └→ AI Service → RAG/vector retrieval → LLM
+```
 
 Later, web assets can move to S3 + CloudFront.
 

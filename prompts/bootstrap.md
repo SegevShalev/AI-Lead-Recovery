@@ -7,6 +7,7 @@ You are the primary coding agent for this repository.
 We are two developers building AI Lead Recovery as a real learning project. The product is a revenue-recovery layer for small businesses, initially Hebrew-first and WhatsApp-first. The attached PRD is the product source of truth.
 
 Our priorities, in order:
+
 1. Learn modern AI application engineering.
 2. Learn AWS/cloud by actually deploying.
 3. Practice real microservices and distributed-system patterns.
@@ -19,6 +20,7 @@ We specifically want hands-on exposure to RAG, embeddings, retrieval, structured
 ## Read first
 
 Before writing code, read:
+
 - `AGENTS.md`
 - `docs/product/PRD.md`
 - `docs/architecture/system-architecture.md`
@@ -33,6 +35,7 @@ Before writing code, read:
 ## Target architecture
 
 Create a TypeScript monorepo containing:
+
 - `apps/web` — React + Vite
 - `services/api` — Node.js + Express
 - `services/recovery-worker` — independently running microservice
@@ -41,6 +44,7 @@ Create a TypeScript monorepo containing:
 - `infra/cdk` — AWS CDK TypeScript
 
 Infrastructure:
+
 - MongoDB
 - Redis
 - SQS + DLQ
@@ -51,6 +55,7 @@ Infrastructure:
 - Secrets Manager/SSM as appropriate
 
 AI direction:
+
 - provider-neutral AI service
 - structured outputs
 - RAG over business-specific knowledge
@@ -65,6 +70,7 @@ AI direction:
 Do NOT interpret this as a request to create many tiny microservices.
 
 Three services are intentional:
+
 1. API — synchronous product boundary
 2. Recovery Worker — asynchronous domain processing
 3. AI Service — AI/provider/RAG boundary
@@ -117,6 +123,7 @@ Do not automatically send messages.
 RAG is a learning objective, not a checkbox.
 
 The first knowledge corpus should contain realistic garage information such as:
+
 - services
 - service descriptions
 - indicative price ranges
@@ -126,6 +133,7 @@ The first knowledge corpus should contain realistic garage information such as:
 - FAQ
 
 The retrieval API should be provider-neutral enough that we can later compare:
+
 - application-managed vector retrieval
 - managed AWS/Bedrock retrieval
 - Redis/ElastiCache vector/hybrid search
@@ -135,6 +143,7 @@ Do not commit to a specific vector database without documenting the trade-off.
 ## Testing
 
 Add tests for:
+
 - unanswered-message detection
 - event schemas
 - worker idempotency
@@ -145,6 +154,7 @@ Add tests for:
 - prompt injection handling
 
 Add evaluation examples for:
+
 - good follow-up
 - unsupported price claim
 - prompt injection inside customer text
@@ -154,6 +164,7 @@ Add evaluation examples for:
 ## AWS
 
 Only after local functionality is coherent, build CDK for:
+
 - VPC
 - ECR repositories
 - ECS cluster/services
@@ -181,6 +192,7 @@ I. evaluations/observability
 J. CDK/AWS
 
 After each phase:
+
 - run tests
 - run typecheck
 - summarize files changed
@@ -194,6 +206,7 @@ If a design decision is genuinely ambiguous, explain the trade-offs before makin
 ## Definition of success
 
 From a clean checkout, two developers should eventually be able to:
+
 1. start local dependencies,
 2. start the three services,
 3. seed a demo garage,

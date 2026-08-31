@@ -3,6 +3,7 @@
 Use MongoDB with Mongoose initially.
 
 ## Business
+
 - `_id`
 - `name`
 - `vertical`
@@ -13,6 +14,7 @@ Use MongoDB with Mongoose initially.
 - `updatedAt`
 
 ## Customer
+
 - `_id`
 - `businessId`
 - `displayName`
@@ -21,6 +23,7 @@ Use MongoDB with Mongoose initially.
 - `updatedAt`
 
 ## Conversation
+
 - `_id`
 - `businessId`
 - `customerId`
@@ -31,6 +34,7 @@ Use MongoDB with Mongoose initially.
 - `updatedAt`
 
 ## Message
+
 - `_id`
 - `conversationId`
 - `direction` = inbound | outbound
@@ -40,6 +44,7 @@ Use MongoDB with Mongoose initially.
 - `metadata`
 
 ## RecoveryCase
+
 - `_id`
 - `businessId`
 - `conversationId`
@@ -56,6 +61,7 @@ Use MongoDB with Mongoose initially.
 ## BusinessKnowledgeDocument
 
 RAG source owned by the business domain/API:
+
 - `_id`
 - `businessId`
 - `type` = service | policy | faq | style | example | other
@@ -86,6 +92,7 @@ Avoid storing chain-of-thought.
 ## AI request metadata
 
 Store minimal operational metadata where useful:
+
 - provider/model
 - latency
 - token counts if available
@@ -99,6 +106,7 @@ Do not store raw prompts/responses indefinitely by default.
 ## Indexes
 
 Start with:
+
 - Conversation `{businessId, lastMessageAt}`
 - Message `{conversationId, occurredAt}`
 - RecoveryCase `{businessId, status, detectedAt}`

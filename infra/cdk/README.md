@@ -1,6 +1,7 @@
 # CDK Infrastructure
 
 Target AWS resources:
+
 - VPC
 - ECR repositories for API, Recovery Worker and AI Service
 - ECS/Fargate cluster and services

@@ -7,6 +7,7 @@ You are the engineering copilot for AI Lead Recovery. Build a small, real, under
 ## Mandatory reading
 
 Before implementation, read:
+
 - `docs/product/PRD.md`
 - `docs/architecture/system-architecture.md`
 - `docs/architecture/service-boundaries.md`
@@ -72,6 +73,7 @@ Before implementation, read:
 ## Redis rules
 
 Use Redis for meaningful infrastructure concerns:
+
 - cache
 - idempotency
 - short-lived locks
@@ -85,6 +87,7 @@ Cache keys must include tenant/business scope where relevant.
 The MVP is Hebrew-first and WhatsApp-first. Garage is the current proposed niche but remains a validation hypothesis.
 
 The product must answer:
+
 - How much money is at risk?
 - Who needs follow-up?
 - What should be said?
@@ -104,6 +107,7 @@ Human-in-the-loop outreach is required for MVP.
 ## Definition of done
 
 A task is not done merely because code compiles. It should have:
+
 - implementation
 - tests
 - typecheck/lint where relevant
