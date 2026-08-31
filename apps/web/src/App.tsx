@@ -6,13 +6,7 @@ import { LeadDrawer } from "./components/LeadDrawer.js";
 import { LeadTable } from "./components/LeadTable.js";
 import { Toast } from "./components/Toast.js";
 import { TopBar } from "./components/TopBar.js";
-import {
-  BUSINESS_NAME,
-  LEADS,
-  REPLY_RATE_LABEL,
-  SYNCED_AGO_LABEL,
-  type Lead,
-} from "./data/leads.js";
+import { BUSINESS_NAME, REPLY_RATE_LABEL, SYNCED_AGO_LABEL, type Lead } from "./data/leads.js";
 import {
   bucketSummaries,
   filteredSortedRows,
@@ -24,13 +18,19 @@ import {
   type StatusMap,
 } from "./lib/dashboard.js";
 import { formatMoney } from "./lib/format.js";
+import { fetchDemoBusiness, fetchOpenLeads } from "./lib/api.js";
 
 const TOAST_DURATION_MS = 3200;
 const SEND_CLOSE_DELAY_MS = 650;
 
 export function App() {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [businessName, setBusinessName] = useState(BUSINESS_NAME);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [status, setStatus] = useState<StatusMap>({});
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sent, setSent] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -38,6 +38,35 @@ export function App() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const business = await fetchDemoBusiness();
+        if (!business) {
+          if (!cancelled) setLoadError("No business seeded yet — run the seed script first.");
+          return;
+        }
+        const openCases = await fetchOpenLeads(business._id);
+        if (!cancelled) {
+          setBusinessName(business.name);
+          setLeads(openCases);
+        }
+      } catch (error) {
+        if (!cancelled)
+          setLoadError(error instanceof Error ? error.message : "Failed to load dashboard");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function flash(message: string) {
     setToast(message);
@@ -59,7 +88,7 @@ export function App() {
     setFilter((prev) => (prev === key ? "all" : key));
   }
 
-  const selectedLead = LEADS.find((lead) => lead.id === selectedId) ?? null;
+  const selectedLead = leads.find((lead) => lead.id === selectedId) ?? null;
 
   function send() {
     if (!selectedLead) return;
@@ -78,16 +107,34 @@ export function App() {
     flash("Removed from your recovery list.");
   }
 
-  const rows = filteredSortedRows(LEADS, status, filter);
-  const buckets = bucketSummaries(LEADS, status);
-  const total = heroTotal(LEADS, status);
-  const openCount = openLeads(LEADS, status).length;
-  const recoveredTotal = recoveredThisMonth(LEADS, status);
-  const topFive = topFiveValue(LEADS, status);
+  if (loading) {
+    return (
+      <div className="app-shell">
+        <TopBar businessName={businessName} syncedAgo={SYNCED_AGO_LABEL} />
+        <div className="page">Loading dashboard…</div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="app-shell">
+        <TopBar businessName={businessName} syncedAgo={SYNCED_AGO_LABEL} />
+        <div className="page">{loadError}</div>
+      </div>
+    );
+  }
+
+  const rows = filteredSortedRows(leads, status, filter);
+  const buckets = bucketSummaries(leads, status);
+  const total = heroTotal(leads, status);
+  const openCount = openLeads(leads, status).length;
+  const recoveredTotal = recoveredThisMonth(leads, status);
+  const topFive = topFiveValue(leads, status);
 
   return (
     <div className="app-shell">
-      <TopBar businessName={BUSINESS_NAME} syncedAgo={SYNCED_AGO_LABEL} />
+      <TopBar businessName={businessName} syncedAgo={SYNCED_AGO_LABEL} />
 
       <div className="page">
         <Hero

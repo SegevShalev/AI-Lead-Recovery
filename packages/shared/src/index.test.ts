@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { conversationMessageReceivedEventSchema, recoveryCaseSchema } from "./index.js";
+import {
+  conversationMessageReceivedEventSchema,
+  recoveryCaseSchema,
+  whatsappWebhookPayloadSchema,
+} from "./index.js";
 
 describe("shared contracts", () => {
   it("validates a conversation.message.received event", () => {
@@ -31,5 +35,15 @@ describe("shared contracts", () => {
       updatedAt: new Date().toISOString(),
     });
     expect(result.success).toBe(false);
+  });
+
+  it("validates a fake WhatsApp webhook payload", () => {
+    const result = whatsappWebhookPayloadSchema.safeParse({
+      businessId: "business-1",
+      customerPhone: "+972501234567",
+      direction: "inbound",
+      text: "כמה עולה טיפול?",
+    });
+    expect(result.success).toBe(true);
   });
 });

@@ -1,0 +1,18 @@
+{
+  "name": "@ai-lead-recovery/db",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "mongoose": "^8.9.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}

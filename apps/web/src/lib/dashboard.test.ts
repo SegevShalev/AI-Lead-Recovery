@@ -14,8 +14,8 @@ describe("openLeads", () => {
   it("excludes leads with a status", () => {
     const status: StatusMap = { 1: "sent", 2: "dismissed" };
     const open = openLeads(LEADS, status);
-    expect(open.some((lead) => lead.id === 1)).toBe(false);
-    expect(open.some((lead) => lead.id === 2)).toBe(false);
+    expect(open.some((lead) => lead.id === "1")).toBe(false);
+    expect(open.some((lead) => lead.id === "2")).toBe(false);
     expect(open.length).toBe(LEADS.length - 2);
   });
 });

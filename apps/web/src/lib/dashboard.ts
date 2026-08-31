@@ -6,7 +6,7 @@ import {
   type LeadStatus,
 } from "../data/leads.js";
 
-export type StatusMap = Record<number, LeadStatus>;
+export type StatusMap = Record<string, LeadStatus>;
 export type FilterKey = "all" | LeadKind;
 
 export function openLeads(leads: Lead[], status: StatusMap): Lead[] {
