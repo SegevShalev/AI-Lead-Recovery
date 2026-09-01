@@ -4,6 +4,7 @@ import { FilterBar } from "./components/FilterBar.js";
 import { Hero } from "./components/Hero.js";
 import { LeadDrawer } from "./components/LeadDrawer.js";
 import { LeadTable } from "./components/LeadTable.js";
+import { ErrorPage } from "./components/ErrorPage.js";
 import { Toast } from "./components/Toast.js";
 import { TopBar } from "./components/TopBar.js";
 import { BUSINESS_NAME, REPLY_RATE_LABEL, SYNCED_AGO_LABEL, type Lead } from "./data/leads.js";
@@ -29,6 +30,8 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [retryCount, setRetryCount] = useState(0);
+
   const [status, setStatus] = useState<StatusMap>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -43,6 +46,8 @@ export function App() {
     let cancelled = false;
 
     async function load() {
+      setLoading(true);
+      setLoadError(null);
       try {
         const business = await fetchDemoBusiness();
         if (!business) {
@@ -56,7 +61,11 @@ export function App() {
         }
       } catch (error) {
         if (!cancelled)
-          setLoadError(error instanceof Error ? error.message : "Failed to load dashboard");
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load dashboard — the server may be unreachable.",
+          );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,7 +75,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryCount]);
 
   function flash(message: string) {
     setToast(message);
@@ -120,7 +129,7 @@ export function App() {
     return (
       <div className="app-shell">
         <TopBar businessName={businessName} syncedAgo={SYNCED_AGO_LABEL} />
-        <div className="page">{loadError}</div>
+        <ErrorPage message={loadError} onRetry={() => setRetryCount((count) => count + 1)} />
       </div>
     );
   }
