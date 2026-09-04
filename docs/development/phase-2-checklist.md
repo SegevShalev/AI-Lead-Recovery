@@ -52,10 +52,14 @@ Doesn't touch the queue transport at all.
 
 ## Shared — do together, not split
 
-- [x] **Idempotency wiring** — already done, turns out: `worker.ts`'s
-      `handleConversationMessageReceived` calls `markProcessed()` first thing
-      (line 27) and returns early on a duplicate `eventId`. Not a Phase 2
-      change, just confirming it's real and in place.
+- [x] **Idempotency wiring** — `worker.ts`'s `handleConversationMessageReceived`
+      calls `markProcessed()` first thing and returns early on a duplicate
+      `eventId`. Originally this PR left the mark in place even when the
+      handler's work then failed, which meant an SQS redelivery would be
+      swallowed silently instead of actually reprocessed (caught in review —
+      see PR #3). Fixed: the work is wrapped in a try/catch, and a failure
+      calls `unmarkProcessed()` to roll back the claim before rethrowing, so
+      a redelivery is treated as a fresh first delivery.
 - [ ] **Joint test against real SQS.** Once a dev SQS queue exists (see DLQ
       note above) and Track 2's logging/health land: fire a duplicate message
       through it on purpose, confirm only one recovery case results end to
