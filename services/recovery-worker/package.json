@@ -15,9 +15,13 @@
     "@ai-lead-recovery/db": "workspace:*",
     "@ai-lead-recovery/queue": "workspace:*",
     "@ai-lead-recovery/shared": "workspace:*",
+    "express": "^4.21.2",
     "redis": "^4.7.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "vitest": "^2.1.8"
   }

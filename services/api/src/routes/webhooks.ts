@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import {
+  createLogger,
   whatsappWebhookPayloadSchema,
   type ConversationMessageReceivedEvent,
 } from "@ai-lead-recovery/shared";
@@ -9,6 +10,8 @@ import { Business, Conversation, Customer, Message } from "../db/models.js";
 export interface EventPublisher {
   publish(event: ConversationMessageReceivedEvent): Promise<void>;
 }
+
+const logger = createLogger("api");
 
 /**
  * Fake WhatsApp ingestion (docs/development/roadmap.md Phase 1).
@@ -25,9 +28,14 @@ export function createWebhooksRouter(deps: { queue: EventPublisher }): Router {
       return;
     }
     const payload = parsed.data;
+    const correlationId = randomUUID();
 
     const business = await Business.findById(payload.businessId);
     if (!business) {
+      logger.warn("webhook rejected: business not found", {
+        correlationId,
+        businessId: payload.businessId,
+      });
       res.status(404).json({ error: "business_not_found" });
       return;
     }
@@ -78,6 +86,13 @@ export function createWebhooksRouter(deps: { queue: EventPublisher }): Router {
       eventId: randomUUID(),
       occurredAt: occurredAt.toISOString(),
       tenantId: String(business._id),
+      correlationId,
+      conversationId: String(conversation._id),
+      messageId: String(message._id),
+    });
+
+    logger.info("conversation.message.received published", {
+      correlationId,
       conversationId: String(conversation._id),
       messageId: String(message._id),
     });

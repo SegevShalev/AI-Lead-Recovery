@@ -16,7 +16,8 @@
     "@ai-lead-recovery/db": "workspace:*",
     "@ai-lead-recovery/queue": "workspace:*",
     "@ai-lead-recovery/shared": "workspace:*",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "redis": "^4.7.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
