@@ -47,9 +47,9 @@ describe("api", () => {
 
   describe("GET /health", () => {
     it("returns ok", async () => {
-      const response = await request(createApp({ queue: new FakeQueue(), cache: new FakeCache() })).get(
-        "/health",
-      );
+      const response = await request(
+        createApp({ queue: new FakeQueue(), cache: new FakeCache() }),
+      ).get("/health");
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ status: "ok", service: "api" });
     });

@@ -64,7 +64,10 @@ export async function handleConversationMessageReceived(
   if (existingOpenCase) {
     existingOpenCase.lastEvaluatedAt = new Date();
     await existingOpenCase.save();
-    deps.logger.info("recovery case re-evaluated", { ...logFields, caseId: String(existingOpenCase._id) });
+    deps.logger.info("recovery case re-evaluated", {
+      ...logFields,
+      caseId: String(existingOpenCase._id),
+    });
     return;
   }
 
