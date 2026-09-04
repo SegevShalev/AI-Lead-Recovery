@@ -1,6 +1,7 @@
 import { loadEnv } from "@ai-lead-recovery/config";
 import { connectMongo } from "@ai-lead-recovery/db";
 import { createRedisListQueue } from "@ai-lead-recovery/queue";
+import { createClient } from "redis";
 import { createApp } from "./app.js";
 
 const env = loadEnv();
@@ -13,7 +14,11 @@ if (env.QUEUE_PROVIDER !== "local") {
 await connectMongo(env.MONGODB_URI);
 const queue = createRedisListQueue(env.REDIS_URL, "conversation-events");
 
-const app = createApp({ queue });
+const cacheRedis = createClient({ url: env.REDIS_URL });
+cacheRedis.on("error", (err) => console.error("[api] cache redis error", err));
+await cacheRedis.connect();
+
+const app = createApp({ queue, cache: cacheRedis });
 app.listen(port, () => {
   console.log(`[api] listening on port ${port} (env=${env.NODE_ENV})`);
 });
