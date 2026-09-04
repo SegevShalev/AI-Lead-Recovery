@@ -78,6 +78,28 @@ describe("createSqsQueue", () => {
     expect(sqsMock.commandCalls(DeleteMessageCommand)).toHaveLength(0);
   });
 
+  it("logs and skips a malformed message body instead of crashing the consume loop", async () => {
+    const event = testEvent("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+    sqsMock.on(ReceiveMessageCommand).resolves({
+      Messages: [
+        { Body: "not valid json", ReceiptHandle: "receipt-bad" },
+        { Body: JSON.stringify(event), ReceiptHandle: "receipt-good" },
+      ],
+    });
+    const queue = createSqsQueue(QUEUE_URL, "us-east-1");
+
+    const received: ConversationMessageReceivedEvent[] = [];
+    await queue.consume(async (e) => {
+      received.push(e as ConversationMessageReceivedEvent);
+      queue.stop();
+    });
+
+    expect(received).toHaveLength(1);
+    const deleteCalls = sqsMock.commandCalls(DeleteMessageCommand);
+    expect(deleteCalls).toHaveLength(1);
+    expect(deleteCalls[0]?.args[0].input.ReceiptHandle).toBe("receipt-good");
+  });
+
   it("polls again when a receive returns no messages", async () => {
     const event = testEvent("3fa85f64-5717-4562-b3fc-2c963f66afa6");
     sqsMock

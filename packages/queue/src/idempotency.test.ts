@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient } from "redis";
-import { markProcessed } from "./idempotency.js";
+import { markProcessed, unmarkProcessed } from "./idempotency.js";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -20,5 +20,14 @@ describe("markProcessed", () => {
     const eventId = crypto.randomUUID();
     expect(await markProcessed(redis, eventId, 60)).toBe(true);
     expect(await markProcessed(redis, eventId, 60)).toBe(false);
+  });
+
+  it("unmarkProcessed lets a rolled-back eventId be claimed again", async () => {
+    const eventId = crypto.randomUUID();
+    expect(await markProcessed(redis, eventId, 60)).toBe(true);
+
+    await unmarkProcessed(redis, eventId);
+
+    expect(await markProcessed(redis, eventId, 60)).toBe(true);
   });
 });

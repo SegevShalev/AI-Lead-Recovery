@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { connectMongo, disconnectMongo } from "@ai-lead-recovery/db";
+import { markProcessed } from "@ai-lead-recovery/queue";
 import type { ConversationMessageReceivedEvent } from "@ai-lead-recovery/shared";
 import { createClient } from "redis";
 import { Business, Conversation, Customer, Message, RecoveryCase } from "./db/models.js";
@@ -99,6 +100,17 @@ describe("handleConversationMessageReceived", () => {
 
     const cases = await RecoveryCase.find({ conversationId: conversation._id });
     expect(cases).toHaveLength(1);
+  });
+
+  it("rolls back the idempotency mark on failure, so a redelivery is retried rather than dropped", async () => {
+    const event = eventFor("not-a-valid-object-id");
+
+    await expect(
+      handleConversationMessageReceived(event, { redis, thresholdMinutes: THRESHOLD_MINUTES }),
+    ).rejects.toThrow();
+
+    const isFirstDeliveryOnRetry = await markProcessed(redis, event.eventId, 60);
+    expect(isFirstDeliveryOnRetry).toBe(true);
   });
 
   it("does not create a case when the last message already has a reply", async () => {

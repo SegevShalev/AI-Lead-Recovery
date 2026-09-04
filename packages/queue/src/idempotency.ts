@@ -7,6 +7,11 @@
  */
 export interface RedisSetClient {
   set(key: string, value: string, options: { NX: true; EX: number }): Promise<string | null>;
+  del(key: string): Promise<number>;
+}
+
+function processedKey(eventId: string): string {
+  return `processed:${eventId}`;
 }
 
 /**
@@ -19,9 +24,18 @@ export async function markProcessed(
   eventId: string,
   ttlSeconds: number,
 ): Promise<boolean> {
-  const result = await redis.set(`processed:${eventId}`, "1", {
+  const result = await redis.set(processedKey(eventId), "1", {
     NX: true,
     EX: ttlSeconds,
   });
   return result === "OK";
+}
+
+/**
+ * Rolls back a mark made by `markProcessed`. Callers use this when the claimed
+ * work then fails, so a subsequent redelivery is treated as first delivery
+ * again instead of being silently swallowed.
+ */
+export async function unmarkProcessed(redis: RedisSetClient, eventId: string): Promise<void> {
+  await redis.del(processedKey(eventId));
 }
