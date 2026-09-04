@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { loadEnv } from "@ai-lead-recovery/config";
 import { connectMongo, disconnectMongo } from "@ai-lead-recovery/db";
-import { createRedisListQueue } from "@ai-lead-recovery/queue";
+import { createQueueFromEnv } from "@ai-lead-recovery/queue";
 import type { ConversationMessageReceivedEvent } from "@ai-lead-recovery/shared";
 import { Business, Conversation, Customer, Message } from "../db/models.js";
 
@@ -65,7 +65,7 @@ function randomPastOccurredAt(): Date {
 async function seed() {
   const env = loadEnv();
   await connectMongo(env.MONGODB_URI);
-  const queue = createRedisListQueue(env.REDIS_URL, "conversation-events");
+  const queue = createQueueFromEnv(env, "conversation-events");
 
   let business = await Business.findOne({ name: DEMO_BUSINESS_NAME });
   if (!business) {
