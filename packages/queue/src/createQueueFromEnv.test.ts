@@ -27,7 +27,10 @@ describe("createQueueFromEnv", () => {
 
   it("throws when QUEUE_PROVIDER=sqs but SQS_QUEUE_URL/AWS_REGION are missing", () => {
     expect(() =>
-      createQueueFromEnv({ QUEUE_PROVIDER: "sqs", REDIS_URL: "redis://localhost:6379" }, "test-queue"),
+      createQueueFromEnv(
+        { QUEUE_PROVIDER: "sqs", REDIS_URL: "redis://localhost:6379" },
+        "test-queue",
+      ),
     ).toThrow(/SQS_QUEUE_URL and AWS_REGION/);
   });
 });

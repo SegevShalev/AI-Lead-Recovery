@@ -23,7 +23,7 @@ a real durable queue, without breaking the existing `Queue` interface.
       `maxReceiveCount`/visibility-timeout backoff are **queue configuration,
       not app code** — they need a real SQS queue with a redrive policy.
       That provisioning is CDK's job (Phase 6 in the roadmap). Until then,
-      Track 1 needs *some* dev/test SQS queue + DLQ to point
+      Track 1 needs _some_ dev/test SQS queue + DLQ to point
       `SQS_QUEUE_URL` at for manual verification — needs an AWS account,
       not something to script unattended.
 - [x] Wire `QUEUE_PROVIDER=local|sqs` to actually switch adapters — both

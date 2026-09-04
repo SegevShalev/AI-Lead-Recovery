@@ -32,7 +32,7 @@ That prints a `QueueUrl` like
 `http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/conversation-events`
 — set `SQS_QUEUE_URL` to that, `QUEUE_PROVIDER=sqs`, `AWS_REGION=us-east-1`,
 and set dummy credentials (LocalStack accepts any value, but the SDK
-requires *something* present):
+requires _something_ present):
 
 ```bash
 AWS_ENDPOINT_URL=http://localhost:4566
