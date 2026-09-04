@@ -21,6 +21,11 @@ if (env.QUEUE_PROVIDER !== "local") {
 await connectMongo(env.MONGODB_URI);
 
 const idempotencyRedis = createClient({ url: env.REDIS_URL });
+idempotencyRedis.on("error", (err) =>
+  logger.error("idempotency redis error", {
+    error: err instanceof Error ? err.message : String(err),
+  }),
+);
 await idempotencyRedis.connect();
 
 let lastEventProcessedAt: Date | null = null;

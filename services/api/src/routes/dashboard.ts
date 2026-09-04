@@ -39,10 +39,14 @@ export function createDashboardRouter(deps: { cache: DashboardCacheClient }): Ro
     }
 
     const cacheKey = dashboardCacheKey(businessId);
-    const cached = await deps.cache.get(cacheKey);
-    if (cached) {
-      res.json(JSON.parse(cached));
-      return;
+    try {
+      const cached = await deps.cache.get(cacheKey);
+      if (cached) {
+        res.json(JSON.parse(cached));
+        return;
+      }
+    } catch (err) {
+      console.warn("[api] dashboard cache read failed, falling back to Mongo", err);
     }
 
     const rows = await RecoveryCase.aggregate<TypeBreakdown>([
@@ -56,7 +60,11 @@ export function createDashboardRouter(deps: { cache: DashboardCacheClient }): Ro
     const totalRecoverableValue = rows.reduce((sum, row) => sum + row.estimatedValue, 0);
     const body = { totalRecoverableValue, breakdown };
 
-    await deps.cache.set(cacheKey, JSON.stringify(body), { EX: CACHE_TTL_SECONDS });
+    try {
+      await deps.cache.set(cacheKey, JSON.stringify(body), { EX: CACHE_TTL_SECONDS });
+    } catch (err) {
+      console.warn("[api] dashboard cache write failed", err);
+    }
     res.json(body);
   });
 

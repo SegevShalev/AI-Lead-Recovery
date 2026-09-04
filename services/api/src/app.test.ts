@@ -26,6 +26,15 @@ class FakeCache {
   }
 }
 
+class FailingCache {
+  async get(): Promise<string | null> {
+    throw new Error("connection lost");
+  }
+  async set(): Promise<string | null> {
+    throw new Error("connection lost");
+  }
+}
+
 describe("api", () => {
   beforeAll(async () => {
     await connectMongo(MONGODB_URI);
@@ -200,6 +209,23 @@ describe("api", () => {
         .get("/api/dashboard")
         .query({ businessId: String(business._id) });
       expect(second.body.totalRecoverableValue).toBe(0);
+    });
+
+    it("falls back to Mongo when the cache is unavailable", async () => {
+      const business = await Business.create({
+        name: "Test Garage",
+        vertical: "garage",
+        currency: "ILS",
+        averageTicketValue: 500,
+        settingsVersion: 1,
+      });
+      const app = createApp({ queue: new FakeQueue(), cache: new FailingCache() });
+
+      const response = await request(app)
+        .get("/api/dashboard")
+        .query({ businessId: String(business._id) });
+      expect(response.status).toBe(200);
+      expect(response.body.totalRecoverableValue).toBe(0);
     });
   });
 });

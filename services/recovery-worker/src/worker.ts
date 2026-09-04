@@ -83,6 +83,13 @@ export async function handleConversationMessageReceived(
     detectedAt: now,
     lastEvaluatedAt: now,
   });
-  await deps.invalidateDashboardCache(String(conversation.businessId));
+  try {
+    await deps.invalidateDashboardCache(String(conversation.businessId));
+  } catch (err) {
+    deps.logger.warn("dashboard cache invalidation failed", {
+      ...logFields,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
   deps.logger.info("recovery case created", { ...logFields, caseId: String(recoveryCase._id) });
 }

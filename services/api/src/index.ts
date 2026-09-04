@@ -15,6 +15,7 @@ await connectMongo(env.MONGODB_URI);
 const queue = createRedisListQueue(env.REDIS_URL, "conversation-events");
 
 const cacheRedis = createClient({ url: env.REDIS_URL });
+cacheRedis.on("error", (err) => console.error("[api] cache redis error", err));
 await cacheRedis.connect();
 
 const app = createApp({ queue, cache: cacheRedis });

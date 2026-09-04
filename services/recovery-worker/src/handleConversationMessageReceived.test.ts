@@ -145,6 +145,42 @@ describe("handleConversationMessageReceived", () => {
     expect(invalidatedBusinessIds).toEqual([]);
   });
 
+  it("still creates the case and logs when dashboard cache invalidation fails", async () => {
+    const business = await Business.create({ averageTicketValue: 500 });
+    const customer = await Customer.create({
+      businessId: business._id,
+      displayName: "דני",
+      phone: "+972501234567",
+    });
+    const conversation = await Conversation.create({
+      businessId: business._id,
+      customerId: customer._id,
+    });
+    await Message.create({
+      conversationId: conversation._id,
+      direction: "inbound",
+      occurredAt: new Date(Date.now() - 2 * 60 * 60_000),
+    });
+
+    const warnings: string[] = [];
+    const failingDeps: WorkerDeps = {
+      ...deps,
+      invalidateDashboardCache: async () => {
+        throw new Error("redis down");
+      },
+      logger: {
+        ...deps.logger,
+        warn: (message) => warnings.push(message),
+      },
+    };
+
+    await handleConversationMessageReceived(eventFor(String(conversation._id)), failingDeps);
+
+    const cases = await RecoveryCase.find({ conversationId: conversation._id });
+    expect(cases).toHaveLength(1);
+    expect(warnings).toEqual(["dashboard cache invalidation failed"]);
+  });
+
   it("logs every line for a message under its correlationId", async () => {
     const business = await Business.create({ averageTicketValue: 500 });
     const customer = await Customer.create({
