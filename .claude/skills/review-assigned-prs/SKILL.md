@@ -25,7 +25,7 @@ If the user names a PR, use that directly. Otherwise, find what's actually waiti
 "$GH" search prs --review-requested=@me --state=open --json number,title,repository,url
 ```
 
-Separately, check for PRs the user previously reviewed with "changes requested" — these need a *recheck* pass rather than a first review:
+Separately, check for PRs the user previously reviewed with "changes requested" — these need a _recheck_ pass rather than a first review:
 
 ```bash
 "$GH" pr list --json number,title,reviewDecision --jq '.[] | select(.reviewDecision=="CHANGES_REQUESTED")'
@@ -42,9 +42,10 @@ Pull the diff and description:
 "$GH" pr view NUMBER --json title,body,commits
 ```
 
-Read for actual correctness bugs first — trace concrete failure scenarios (specific input/state → wrong output/crash), not vague code-smell. Then note reuse/simplification/efficiency opportunities, same bar as this project's own `/code-review` skill, but remember the output here is different: this skill produces something to *post*, not just a report.
+Read for actual correctness bugs first — trace concrete failure scenarios (specific input/state → wrong output/crash), not vague code-smell. Then note reuse/simplification/efficiency opportunities, same bar as this project's own `/code-review` skill, but remember the output here is different: this skill produces something to _post_, not just a report.
 
 Sort findings into:
+
 - **Blocking** (real bugs, correctness issues) → verdict will be Request Changes.
 - **Non-blocking** (style, minor efficiency, nice-to-haves) → verdict can still be Approve, noted as suggestions.
 

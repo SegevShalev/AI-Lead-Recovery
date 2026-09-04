@@ -28,6 +28,9 @@ class FakeCache {
     this.store.set(key, value);
     return "OK";
   }
+  async del(key: string): Promise<number> {
+    return this.store.delete(key) ? 1 : 0;
+  }
 }
 
 class FailingCache {
@@ -35,6 +38,9 @@ class FailingCache {
     throw new Error("connection lost");
   }
   async set(): Promise<string | null> {
+    throw new Error("connection lost");
+  }
+  async del(): Promise<number> {
     throw new Error("connection lost");
   }
 }

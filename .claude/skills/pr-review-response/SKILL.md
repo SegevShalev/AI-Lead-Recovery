@@ -13,8 +13,8 @@ Someone (a human reviewer, or a bot) has already left feedback on a PR in this r
 
 Review feedback splits into two GitHub-API shapes that behave differently, and mixing them up is the easiest way to go wrong:
 
-- **Inline review comments** — attached to a specific file+line in the diff. These live in *threads* that can be marked resolved.
-- **General/issue comments** (including the top-level body of a review) — not attached to a line. A reviewer ends up here when their concern is about a file the PR *doesn't* touch, or when they're leaving overall commentary. **These have no "resolve" action in GitHub at all** — don't try to resolve them, just reply.
+- **Inline review comments** — attached to a specific file+line in the diff. These live in _threads_ that can be marked resolved.
+- **General/issue comments** (including the top-level body of a review) — not attached to a line. A reviewer ends up here when their concern is about a file the PR _doesn't_ touch, or when they're leaving overall commentary. **These have no "resolve" action in GitHub at all** — don't try to resolve them, just reply.
 
 Getting this distinction right up front avoids the two failure modes that actually happened building this skill: trying to resolve something unresolvable, and posting a reply to the wrong endpoint.
 
@@ -101,7 +101,7 @@ These are specific, hard-won gotchas — check whether they still apply if `gh -
 
 ### Building request bodies reliably
 
-**Do not use `gh api ... -f field=@path\to\file`** expecting it to load the field's value from that file. On this environment it silently posts the *literal string* `@path\to\file` as the value instead of reading the file — no error, just wrong data sent with a 200 response. This is exactly what caused the "why is there a raw file path as a PR comment" incident this skill exists to prevent a repeat of.
+**Do not use `gh api ... -f field=@path\to\file`** expecting it to load the field's value from that file. On this environment it silently posts the _literal string_ `@path\to\file` as the value instead of reading the file — no error, just wrong data sent with a 200 response. This is exactly what caused the "why is there a raw file path as a PR comment" incident this skill exists to prevent a repeat of.
 
 Instead, build the JSON payload explicitly and pass it as a file via `--input`:
 
@@ -114,6 +114,6 @@ fs.writeFileSync('reply.json', JSON.stringify({ body }));
 "$GH" api repos/OWNER/REPO/issues/NUMBER/comments --input reply.json
 ```
 
-This also works to *fix* a comment posted wrong: `gh api -X PATCH repos/OWNER/REPO/issues/comments/COMMENT_ID --input reply.json` (or `pulls/comments/COMMENT_ID` for an inline one).
+This also works to _fix_ a comment posted wrong: `gh api -X PATCH repos/OWNER/REPO/issues/comments/COMMENT_ID --input reply.json` (or `pulls/comments/COMMENT_ID` for an inline one).
 
 If running from git-bash and building the JSON with `node`, remember `node.exe` is a native Windows binary — a POSIX-style path like `/c/Users/...` gets mis-resolved. Convert it first: `WINPATH=$(cygpath -m "$POSIXPATH")`, then use `$WINPATH` (forward slashes are fine in Windows paths, so no further escaping is needed).

@@ -2,13 +2,18 @@
  * Narrow structural shape instead of importing `redis`'s `RedisClientType` —
  * that type is parameterized over the client's module map, and pinning
  * callers to one specific instantiation causes needless friction wherever
- * a differently-configured client is passed in. Any real client's `get`/`set`
+ * a differently-configured client is passed in. Any real client's `get`/`set`/`del`
  * satisfies this. Shared with services/api's dashboard cache (`NX` is
  * optional since only the idempotency check needs it).
  */
 export interface RedisStringClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options: { EX: number; NX?: true }): Promise<string | null>;
+  del(key: string): Promise<number>;
+}
+
+function processedKey(eventId: string): string {
+  return `processed:${eventId}`;
 }
 
 /**
@@ -21,9 +26,18 @@ export async function markProcessed(
   eventId: string,
   ttlSeconds: number,
 ): Promise<boolean> {
-  const result = await redis.set(`processed:${eventId}`, "1", {
+  const result = await redis.set(processedKey(eventId), "1", {
     NX: true,
     EX: ttlSeconds,
   });
   return result === "OK";
+}
+
+/**
+ * Rolls back a mark made by `markProcessed`. Callers use this when the claimed
+ * work then fails, so a subsequent redelivery is treated as first delivery
+ * again instead of being silently swallowed.
+ */
+export async function unmarkProcessed(redis: RedisStringClient, eventId: string): Promise<void> {
+  await redis.del(processedKey(eventId));
 }

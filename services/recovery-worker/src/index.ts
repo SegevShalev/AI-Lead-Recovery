@@ -1,6 +1,6 @@
 import { loadEnv } from "@ai-lead-recovery/config";
 import { connectMongo } from "@ai-lead-recovery/db";
-import { createRedisListQueue } from "@ai-lead-recovery/queue";
+import { createQueueFromEnv } from "@ai-lead-recovery/queue";
 import {
   createLogger,
   dashboardCacheVersionKey,
@@ -13,10 +13,6 @@ import { describeStartup, handleConversationMessageReceived } from "./worker.js"
 const env = loadEnv();
 const logger = createLogger("recovery-worker");
 console.log(describeStartup(env));
-
-if (env.QUEUE_PROVIDER !== "local") {
-  throw new Error(`QUEUE_PROVIDER=${env.QUEUE_PROVIDER} is not implemented until Phase 2`);
-}
 
 await connectMongo(env.MONGODB_URI);
 
@@ -38,7 +34,7 @@ healthApp.listen(workerPort, () => {
   console.log(`[recovery-worker] health check listening on port ${workerPort}`);
 });
 
-const queue = createRedisListQueue(env.REDIS_URL, "conversation-events");
+const queue = createQueueFromEnv(env, "conversation-events");
 
 await queue.consume(async (event) => {
   if (event.eventType !== "conversation.message.received") return;
