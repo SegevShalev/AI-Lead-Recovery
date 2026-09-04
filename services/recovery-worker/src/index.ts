@@ -3,7 +3,7 @@ import { connectMongo } from "@ai-lead-recovery/db";
 import { createRedisListQueue } from "@ai-lead-recovery/queue";
 import {
   createLogger,
-  dashboardCacheKey,
+  dashboardCacheVersionKey,
   type ConversationMessageReceivedEvent,
 } from "@ai-lead-recovery/shared";
 import { createClient } from "redis";
@@ -47,7 +47,7 @@ await queue.consume(async (event) => {
     thresholdMinutes: env.UNANSWERED_THRESHOLD_MINUTES,
     logger,
     invalidateDashboardCache: async (businessId) => {
-      await idempotencyRedis.del(dashboardCacheKey(businessId));
+      await idempotencyRedis.incr(dashboardCacheVersionKey(businessId));
     },
   });
   lastEventProcessedAt = new Date();

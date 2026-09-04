@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { mongoose } from "@ai-lead-recovery/db";
 import type { RedisStringClient } from "@ai-lead-recovery/queue";
-import { dashboardCacheKey } from "@ai-lead-recovery/shared";
+import { dashboardCacheKey, dashboardCacheVersionKey } from "@ai-lead-recovery/shared";
 import { RecoveryCase } from "../db/models.js";
 
 interface TypeBreakdown {
@@ -19,13 +19,10 @@ const CACHE_TTL_SECONDS = 30;
  * PRD dashboard headline metric (docs/product/PRD.md section 9):
  * total recoverable value, broken down by recovery-case type.
  * Cached with a short TTL (docs/architecture/service-boundaries.md#redis-usage);
- * recovery-worker deletes the key directly when it opens a new case
- * (see invalidateDashboardCache in services/recovery-worker/src/index.ts).
- * Staleness is usually bounded by whichever comes first, the TTL or that
- * delete — but a request that read Mongo just before the delete can still
- * write its (now-stale) result back after it, so the true bound is TTL plus
- * one in-flight request. Accepted for now given the 30s TTL; a per-key
- * version/lock would close it if this ever needs to be tighter.
+ * recovery-worker bumps the cache version when it opens a new case (see
+ * invalidateDashboardCache in services/recovery-worker/src/index.ts), and
+ * the versioned key in dashboardCacheKey/dashboardCacheVersionKey keeps a
+ * slow read from writing stale data back after that bump.
  */
 export function createDashboardRouter(deps: { cache: DashboardCacheClient }): Router {
   const router = Router();
@@ -37,8 +34,10 @@ export function createDashboardRouter(deps: { cache: DashboardCacheClient }): Ro
       return;
     }
 
-    const cacheKey = dashboardCacheKey(businessId);
+    let cacheKey: string | null = null;
     try {
+      const version = (await deps.cache.get(dashboardCacheVersionKey(businessId))) ?? "0";
+      cacheKey = dashboardCacheKey(businessId, version);
       const cached = await deps.cache.get(cacheKey);
       if (cached) {
         res.json(JSON.parse(cached));
@@ -59,10 +58,14 @@ export function createDashboardRouter(deps: { cache: DashboardCacheClient }): Ro
     const totalRecoverableValue = rows.reduce((sum, row) => sum + row.estimatedValue, 0);
     const body = { totalRecoverableValue, breakdown };
 
-    try {
-      await deps.cache.set(cacheKey, JSON.stringify(body), { EX: CACHE_TTL_SECONDS });
-    } catch (err) {
-      console.warn("[api] dashboard cache write failed", err);
+    // cacheKey is only null if the version read above failed, i.e. the
+    // cache is already unreachable — skip the write rather than fail on it.
+    if (cacheKey) {
+      try {
+        await deps.cache.set(cacheKey, JSON.stringify(body), { EX: CACHE_TTL_SECONDS });
+      } catch (err) {
+        console.warn("[api] dashboard cache write failed", err);
+      }
     }
     res.json(body);
   });

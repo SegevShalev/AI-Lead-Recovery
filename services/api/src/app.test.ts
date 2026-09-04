@@ -1,7 +1,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import { connectMongo, disconnectMongo } from "@ai-lead-recovery/db";
-import type { ConversationMessageReceivedEvent } from "@ai-lead-recovery/shared";
+import {
+  dashboardCacheKey,
+  dashboardCacheVersionKey,
+  type ConversationMessageReceivedEvent,
+} from "@ai-lead-recovery/shared";
 import { createApp } from "./app.js";
 import { Business, Conversation, Customer, Message, RecoveryCase } from "./db/models.js";
 
@@ -208,6 +212,34 @@ describe("api", () => {
       const second = await request(app)
         .get("/api/dashboard")
         .query({ businessId: String(business._id) });
+      expect(second.body.totalRecoverableValue).toBe(0);
+    });
+
+    it("ignores a stale write that lands after cache invalidation bumps the version", async () => {
+      const business = await Business.create({
+        name: "Test Garage",
+        vertical: "garage",
+        currency: "ILS",
+        averageTicketValue: 500,
+        settingsVersion: 1,
+      });
+      const businessId = String(business._id);
+      const cache = new FakeCache();
+      const app = createApp({ queue: new FakeQueue(), cache });
+
+      const first = await request(app).get("/api/dashboard").query({ businessId });
+      expect(first.body.totalRecoverableValue).toBe(0);
+
+      // Simulate recovery-worker's invalidation (a version bump) racing ahead
+      // of a slow request that already read Mongo under the old version and
+      // is only now writing its (stale) result back.
+      await cache.set(dashboardCacheVersionKey(businessId), "1");
+      await cache.set(
+        dashboardCacheKey(businessId, "0"),
+        JSON.stringify({ totalRecoverableValue: 999, breakdown: {} }),
+      );
+
+      const second = await request(app).get("/api/dashboard").query({ businessId });
       expect(second.body.totalRecoverableValue).toBe(0);
     });
 
