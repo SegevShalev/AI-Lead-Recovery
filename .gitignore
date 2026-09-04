@@ -8,3 +8,4 @@ coverage
 cdk.out
 .DS_Store
 *.log
+.husky/_
