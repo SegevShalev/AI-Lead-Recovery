@@ -29,6 +29,7 @@ Expected values will eventually include:
 - `REDIS_URL`
 - `QUEUE_PROVIDER=local|sqs`
 - `SQS_QUEUE_URL`
+- `WORKER_PORT` (recovery-worker's health check endpoint, default 3002)
 - `AI_PROVIDER`
 - `AI_API_KEY`
 

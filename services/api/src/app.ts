@@ -1,11 +1,12 @@
 import express, { type Express } from "express";
 import { createBusinessesRouter } from "./routes/businesses.js";
-import { createDashboardRouter } from "./routes/dashboard.js";
+import { createDashboardRouter, type DashboardCacheClient } from "./routes/dashboard.js";
 import { createRecoveryCasesRouter } from "./routes/recoveryCases.js";
 import { createWebhooksRouter, type EventPublisher } from "./routes/webhooks.js";
 
 export interface AppDeps {
   queue: EventPublisher;
+  cache: DashboardCacheClient;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -18,7 +19,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.use(createWebhooksRouter({ queue: deps.queue }));
   app.use(createBusinessesRouter());
-  app.use(createDashboardRouter());
+  app.use(createDashboardRouter({ cache: deps.cache }));
   app.use(createRecoveryCasesRouter());
 
   return app;

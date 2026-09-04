@@ -15,6 +15,17 @@ class FakeQueue {
   }
 }
 
+class FakeCache {
+  private store = new Map<string, string>();
+  async get(key: string): Promise<string | null> {
+    return this.store.get(key) ?? null;
+  }
+  async set(key: string, value: string): Promise<string> {
+    this.store.set(key, value);
+    return "OK";
+  }
+}
+
 describe("api", () => {
   beforeAll(async () => {
     await connectMongo(MONGODB_URI);
@@ -36,7 +47,9 @@ describe("api", () => {
 
   describe("GET /health", () => {
     it("returns ok", async () => {
-      const response = await request(createApp({ queue: new FakeQueue() })).get("/health");
+      const response = await request(createApp({ queue: new FakeQueue(), cache: new FakeCache() })).get(
+        "/health",
+      );
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ status: "ok", service: "api" });
     });
@@ -52,7 +65,7 @@ describe("api", () => {
         settingsVersion: 1,
       });
       const queue = new FakeQueue();
-      const app = createApp({ queue });
+      const app = createApp({ queue, cache: new FakeCache() });
 
       const response = await request(app)
         .post("/dev/webhooks/whatsapp")
@@ -73,7 +86,7 @@ describe("api", () => {
     });
 
     it("returns 404 for an unknown business", async () => {
-      const app = createApp({ queue: new FakeQueue() });
+      const app = createApp({ queue: new FakeQueue(), cache: new FakeCache() });
       const response = await request(app).post("/dev/webhooks/whatsapp").send({
         businessId: "64b64c1f2f1f2f1f2f1f2f1f",
         customerPhone: "+972501234567",
@@ -123,7 +136,7 @@ describe("api", () => {
         lastEvaluatedAt: new Date(),
       });
 
-      const app = createApp({ queue: new FakeQueue() });
+      const app = createApp({ queue: new FakeQueue(), cache: new FakeCache() });
 
       const dashboard = await request(app)
         .get("/api/dashboard")
@@ -139,6 +152,54 @@ describe("api", () => {
       expect(cases.body.cases).toHaveLength(1);
       expect(cases.body.cases[0].type).toBe("unanswered");
       expect(cases.body.cases[0].lastMessage.text).toBe("כמה עולה טיפול?");
+    });
+
+    it("serves the second read from cache instead of recomputing", async () => {
+      const business = await Business.create({
+        name: "Test Garage",
+        vertical: "garage",
+        currency: "ILS",
+        averageTicketValue: 500,
+        settingsVersion: 1,
+      });
+      const cache = new FakeCache();
+      const app = createApp({ queue: new FakeQueue(), cache });
+
+      const first = await request(app)
+        .get("/api/dashboard")
+        .query({ businessId: String(business._id) });
+      expect(first.body.totalRecoverableValue).toBe(0);
+
+      // A case opens after the first read but before the TTL expires; the
+      // cached response should still be served until invalidated.
+      const customer = await Customer.create({
+        businessId: business._id,
+        displayName: "דני",
+        phone: "+972501234567",
+      });
+      const conversation = await Conversation.create({
+        businessId: business._id,
+        customerId: customer._id,
+        channel: "whatsapp",
+        status: "open",
+        lastMessageAt: new Date(),
+      });
+      await RecoveryCase.create({
+        businessId: business._id,
+        conversationId: conversation._id,
+        customerId: customer._id,
+        type: "unanswered",
+        status: "open",
+        estimatedValue: 500,
+        reason: "no reply within 60 minutes",
+        detectedAt: new Date(),
+        lastEvaluatedAt: new Date(),
+      });
+
+      const second = await request(app)
+        .get("/api/dashboard")
+        .query({ businessId: String(business._id) });
+      expect(second.body.totalRecoverableValue).toBe(0);
     });
   });
 });
