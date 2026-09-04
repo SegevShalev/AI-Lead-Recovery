@@ -91,7 +91,23 @@ CDK provisions:
 - CloudWatch
 - secrets/configuration
 
-Deploy API, Recovery Worker and AI Service as separate ECS services.
+### 6.1 — Build and validate the CDK stack against Floci
+
+Before pointing this stack at a real AWS account, exercise the full CDK deploy
+locally against [Floci](https://github.com/floci-io/floci) (MIT, free local
+AWS emulator, drop-in replacement for the LocalStack SQS setup from Phase 2).
+Unlike LocalStack Community, it emulates ECS/ALB/IAM/ElastiCache without a
+paid tier, which matches the "local first, AWS second" cost rule in
+AGENTS.md. Small maintainer team (2 people); confirm it's still active before
+adopting.
+
+**Exit:** the CDK stack deploys and runs cleanly against Floci with no AWS
+account involved.
+
+### 6.2 — Deploy to real AWS
+
+Point the same CDK stack at a real AWS account. Deploy API, Recovery Worker
+and AI Service as separate ECS services.
 
 ## Phase 7 — Event-driven expansion
 
