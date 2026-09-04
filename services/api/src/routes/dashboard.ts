@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { mongoose } from "@ai-lead-recovery/db";
+import type { RedisStringClient } from "@ai-lead-recovery/queue";
 import { dashboardCacheKey } from "@ai-lead-recovery/shared";
 import { RecoveryCase } from "../db/models.js";
 
@@ -9,14 +10,8 @@ interface TypeBreakdown {
   estimatedValue: number;
 }
 
-/**
- * Narrow structural shape instead of importing `redis`'s `RedisClientType`,
- * matching packages/queue/src/idempotency.ts's RedisSetClient.
- */
-export interface DashboardCacheClient {
-  get(key: string): Promise<string | null>;
-  set(key: string, value: string, options: { EX: number }): Promise<string | null>;
-}
+/** Same narrow redis shape as packages/queue/src/idempotency.ts's RedisStringClient. */
+export type DashboardCacheClient = RedisStringClient;
 
 const CACHE_TTL_SECONDS = 30;
 
@@ -25,8 +20,12 @@ const CACHE_TTL_SECONDS = 30;
  * total recoverable value, broken down by recovery-case type.
  * Cached with a short TTL (docs/architecture/service-boundaries.md#redis-usage);
  * recovery-worker deletes the key directly when it opens a new case
- * (see invalidateDashboardCache in services/recovery-worker/src/index.ts),
- * so staleness is bounded by whichever comes first: the TTL or that write.
+ * (see invalidateDashboardCache in services/recovery-worker/src/index.ts).
+ * Staleness is usually bounded by whichever comes first, the TTL or that
+ * delete — but a request that read Mongo just before the delete can still
+ * write its (now-stale) result back after it, so the true bound is TTL plus
+ * one in-flight request. Accepted for now given the 30s TTL; a per-key
+ * version/lock would close it if this ever needs to be tighter.
  */
 export function createDashboardRouter(deps: { cache: DashboardCacheClient }): Router {
   const router = Router();

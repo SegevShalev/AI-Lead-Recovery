@@ -1,5 +1,5 @@
 import type { Env } from "@ai-lead-recovery/config";
-import { markProcessed, type RedisSetClient } from "@ai-lead-recovery/queue";
+import { markProcessed, type RedisStringClient } from "@ai-lead-recovery/queue";
 import type { ConversationMessageReceivedEvent, Logger } from "@ai-lead-recovery/shared";
 import { Business, Conversation, Message, RecoveryCase } from "./db/models.js";
 import { evaluateUnanswered } from "./rules/unanswered.js";
@@ -11,7 +11,7 @@ export function describeStartup(env: Env): string {
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 
 export interface WorkerDeps {
-  redis: RedisSetClient;
+  redis: RedisStringClient;
   thresholdMinutes: number;
   logger: Logger;
   /** Dashboard aggregate cache is only ever stale by writes made here (docs/architecture/service-boundaries.md#redis-usage). */
