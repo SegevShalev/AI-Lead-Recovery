@@ -11,18 +11,29 @@ processes communicating through a durable queue.
 Swap the Phase 1 Redis-list stand-in (`packages/queue/src/redisQueue.ts`) for
 a real durable queue, without breaking the existing `Queue` interface.
 
-- [ ] **SQS adapter** — new `packages/queue/src/sqsQueue.ts` implementing the
-      same `Queue` interface (`publish` / `consume` / `stop` / `close`) using
-      `@aws-sdk/client-sqs`.
-- [ ] **DLQ** — messages that keep failing redrive to a dead-letter queue
-      instead of being logged and dropped.
-- [ ] **Retries/backoff** — bounded retry with backoff before a message
-      either succeeds or falls to the DLQ (SQS visibility timeout + redrive
-      policy).
-- [ ] Wire `QUEUE_PROVIDER=local|sqs` to actually switch adapters in
+- [x] **SQS adapter** — `packages/queue/src/sqsQueue.ts` implements the same
+      `Queue` interface (`publish` / `consume` / `stop` / `close`) using
+      `@aws-sdk/client-sqs`. Return type is explicitly annotated `: Queue` so
+      the compiler enforces the contract match with `redisQueue.ts`.
+- [x] **Retries (app side)** — `consume` only calls `DeleteMessageCommand`
+      after the handler succeeds; a thrown error leaves the message alone so
+      SQS redelivers it after the visibility timeout. Covered by
+      `sqsQueue.test.ts`.
+- [ ] **DLQ + backoff (infra side)** — the actual dead-letter queue and
+      `maxReceiveCount`/visibility-timeout backoff are **queue configuration,
+      not app code** — they need a real SQS queue with a redrive policy.
+      That provisioning is CDK's job (Phase 6 in the roadmap). Until then,
+      Track 1 needs *some* dev/test SQS queue + DLQ to point
+      `SQS_QUEUE_URL` at for manual verification — needs an AWS account,
+      not something to script unattended.
+- [x] Wire `QUEUE_PROVIDER=local|sqs` to actually switch adapters — both
       `services/api/src/index.ts` and `services/recovery-worker/src/index.ts`
-      (env var already documented in
-      [local-development.md](local-development.md), not yet wired).
+      now call `createQueueFromEnv(env, "conversation-events")`
+      (`packages/queue/src/createQueueFromEnv.ts`), replacing the old
+      "not implemented until Phase 2" guard. `AWS_REGION` added to
+      `envSchema` (`packages/config/src/env.ts`); `SQS_QUEUE_URL` +
+      `AWS_REGION` are required together when `QUEUE_PROVIDER=sqs`
+      (zod `.refine`).
 
 ## Track 2 — Visibility + caching (Segev)
 
@@ -41,14 +52,16 @@ Doesn't touch the queue transport at all.
 
 ## Shared — do together, not split
 
-- [ ] **Idempotency hardening + joint test.** `markProcessed()` already
-      exists in `packages/queue/src/idempotency.ts` but isn't wired into the
-      worker's consume loop yet. Once Track 1's SQS adapter and Track 2's
-      health/logging land: fire a duplicate message through the SQS setup on
-      purpose, confirm only one recovery case results. This is the seam
-      between "does the transport redeliver safely" (Track 1) and "does the
-      handler tolerate it" (Track 2/idempotency), so verify it together
-      rather than assuming either side alone covers it.
+- [x] **Idempotency wiring** — already done, turns out: `worker.ts`'s
+      `handleConversationMessageReceived` calls `markProcessed()` first thing
+      (line 27) and returns early on a duplicate `eventId`. Not a Phase 2
+      change, just confirming it's real and in place.
+- [ ] **Joint test against real SQS.** Once a dev SQS queue exists (see DLQ
+      note above) and Track 2's logging/health land: fire a duplicate message
+      through it on purpose, confirm only one recovery case results end to
+      end. This is the seam between "does the transport redeliver safely"
+      (Track 1) and "does the handler tolerate it" (idempotency) — worth
+      doing together rather than assuming either side alone covers it.
 
 ## Notes
 
