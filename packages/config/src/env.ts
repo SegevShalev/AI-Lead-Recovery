@@ -12,6 +12,8 @@ export const envSchema = z
     AWS_REGION: z.string().optional(),
     AI_PROVIDER: z.enum(["mock", "openai", "anthropic", "bedrock"]).default("mock"),
     AI_API_KEY: z.string().optional(),
+    AI_FALLBACK_PROVIDER: z.enum(["mock", "openai", "anthropic", "bedrock"]).optional(),
+    AI_FALLBACK_API_KEY: z.string().optional(),
     UNANSWERED_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(60),
   })
   .refine((env) => env.QUEUE_PROVIDER !== "sqs" || (env.SQS_QUEUE_URL && env.AWS_REGION), {
