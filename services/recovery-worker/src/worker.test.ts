@@ -9,6 +9,7 @@ describe("describeStartup", () => {
       REDIS_URL: "redis://localhost:6379",
       QUEUE_PROVIDER: "local",
       AI_PROVIDER: "mock",
+      AI_SERVICE_URL: "http://localhost:3001",
       UNANSWERED_THRESHOLD_MINUTES: 60,
     });
     expect(message).toContain("queueProvider=local");
