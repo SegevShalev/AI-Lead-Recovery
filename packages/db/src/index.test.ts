@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { connectMongo, disconnectMongo, mongoose } from "./index.js";
 
-const MONGODB_URI = process.env.MONGODB_URI ?? "mongodb://localhost:27017/ai-lead-recovery-test";
+const MONGODB_URI = process.env.MONGODB_URI ?? "mongodb://localhost:27018/ai-lead-recovery-test";
 
 describe("connectMongo", () => {
   afterAll(async () => {

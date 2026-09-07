@@ -10,7 +10,7 @@ import { createApp } from "./app.js";
 import { Business, Conversation, Customer, Message, RecoveryCase } from "./db/models.js";
 
 const MONGODB_URI =
-  (process.env.MONGODB_URI ?? "mongodb://localhost:27017/ai-lead-recovery-test") + "-api";
+  (process.env.MONGODB_URI ?? "mongodb://localhost:27018/ai-lead-recovery-test") + "-api";
 
 class FakeQueue {
   published: ConversationMessageReceivedEvent[] = [];

@@ -8,7 +8,7 @@ import { Business, Conversation, Customer, Message, RecoveryCase } from "./db/mo
 import { handleConversationMessageReceived, type WorkerDeps } from "./worker.js";
 
 const MONGODB_URI =
-  (process.env.MONGODB_URI ?? "mongodb://localhost:27017/ai-lead-recovery-test") +
+  (process.env.MONGODB_URI ?? "mongodb://localhost:27018/ai-lead-recovery-test") +
   "-recovery-worker";
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 const THRESHOLD_MINUTES = 60;
