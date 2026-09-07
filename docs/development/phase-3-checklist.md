@@ -15,28 +15,124 @@ Current state: `services/ai-service` is a health-check skeleton only (no
 `apps/web/src/lib/api.ts` already has a `draft: ""` placeholder with a
 comment pointing at this phase. Clean slate on both tracks.
 
+## `SuggestionGenerator` contract — decided
+
+Agreed up front so Track 2 can build against a mock without waiting on
+Track 1's real adapter. Lives in `packages/shared/src/suggestions.ts`
+(new file) so both services import the same types.
+
+**Request** (API → AI service):
+
+```ts
+export const suggestionRequestSchema = z.object({
+  recoveryCaseId: z.string(),
+  businessId: z.string(),
+  caseType: recoveryCaseTypeSchema,
+  reason: z.string(), // the deterministic reason already on RecoveryCase
+  estimatedValue: z.number().nonnegative(),
+  customer: z.object({ displayName: z.string(), phone: z.string() }),
+  conversationContext: z
+    .array(
+      z.object({
+        direction: messageDirectionSchema,
+        text: z.string(),
+        occurredAt: z.string().datetime(),
+      }),
+    )
+    .max(10),
+  correlationId: z.string().optional(),
+});
+```
+
+- **Context window**: the last outbound (business) message plus everything
+  after it, capped at 10 messages. Covers the "unanswered" rule correctly
+  (includes the message that never got a reply) and generalizes to
+  `quote_no_response`/`appointment_no_confirmation` once those rules exist,
+  without needing per-case-type message selection yet.
+- **No `confidence` field.** Asking the model to self-report a confidence
+  score with no calibration behind it (no self-consistency check, no
+  grounding data yet) produces a number that looks scientific but isn't —
+  exactly the "avoid unsupported claims" bar in
+  [ai-architecture.md](../architecture/ai-architecture.md#prompt-injection-boundary).
+  Revisit once Phase 4 grounding checks or Phase 5 evaluation give it a real
+  basis.
+
+**Response** — discriminated union, always returned with HTTP 200 (a
+non-2xx/network failure is a *different*, unreachable-service case the API
+must handle separately, see below):
+
+```ts
+export const suggestionResultSchema = z.object({
+  status: z.literal("ok"),
+  message: z.string(),
+  language: z.literal("he"),
+  reason: z.string(), // short user-facing rationale, never chain-of-thought
+  model: z.string(), // whichever model actually produced this, see fallback below
+  promptVersion: z.string(), // plain string, bumped by hand for now (e.g. "hebrew-followup-v1")
+  generatedAt: z.string().datetime(),
+});
+
+export const suggestionDegradedSchema = z.object({
+  status: z.literal("degraded"),
+  errorCode: z.enum([
+    "provider_timeout",
+    "provider_error",
+    "invalid_output",
+    "provider_unavailable",
+  ]),
+  message: z.string().optional(),
+});
+
+export const suggestionResponseSchema = z.discriminatedUnion("status", [
+  suggestionResultSchema,
+  suggestionDegradedSchema,
+]);
+```
+
+**Retry + fallback-model policy** (internal to Track 1, invisible to this
+contract beyond the `model` field reflecting what actually ran):
+
+1. Call the primary model (`AI_PROVIDER`).
+2. On a retryable failure (timeout, provider error, output that fails Zod
+   validation) retry the same model up to 2 more times (3 attempts total).
+   Don't retry non-retryable failures (e.g. bad auth).
+3. If all 3 attempts on the primary fail, make **one** attempt on a
+   fallback model (`AI_FALLBACK_PROVIDER`, separate config/API key) —
+   deliberately not another 3, to keep latency bounded for a human waiting
+   on the result.
+4. Only if the fallback attempt also fails, return `status: "degraded"`.
+5. Log attempt count and which model ultimately served the request
+   (structured log, per
+   [ai-architecture.md](../architecture/ai-architecture.md#observability))
+   — if requests are quietly serving from fallback often, that's worth
+   noticing before Phase 5.
+
+A user-facing "pick your preferred model" setting is a different feature
+(business-level configuration) from this automatic failover — not in scope
+for Phase 3; revisit alongside Phase 5's prompt/model comparison work if
+wanted.
+
 ## Track 1 — AI-service internals (Erez)
 
 Everything that lives inside `services/ai-service`. Doesn't touch
 `services/api` or `apps/web`.
 
-- [ ] **Provider-neutral `SuggestionGenerator`** — define the interface
-      (input: recovery case + selected conversation context; output:
-      Zod-validated `{ message, language, reason, confidence?, model,
-      promptVersion }` per
-      [ai-architecture.md](../architecture/ai-architecture.md#stage-1--structured-generation)).
-      Provider SDK types must not leak past this boundary.
+- [ ] **Provider-neutral `SuggestionGenerator`** implementing the contract
+      above. Provider SDK types must not leak past this boundary.
 - [ ] **Mock/deterministic provider** — `AI_PROVIDER=mock` is already the
       `.env.example` default and the README calls it out as acceptable
       until the rest of the app works. Build this first — it's what lets
       Track 2 start immediately without waiting on a model choice or API
-      key.
+      key. Also useful for deliberately exercising the degraded path in
+      tests without needing a real provider to fail on demand.
 - [ ] **One real model adapter** — behind the same interface (e.g.
       Anthropic or OpenAI). See the `claude-api` skill for model/pricing
       reference if using Claude.
+- [ ] **Fallback model adapter + retry policy** — implements the
+      retry/fallback sequence above; add `AI_FALLBACK_PROVIDER` (and its
+      own API key var) alongside the existing `AI_PROVIDER`/`AI_API_KEY`.
 - [ ] **Structured output with Zod** — validate model output before
-      returning; invalid JSON is a failure case, not a crash (see AI
-      failure/degraded mode below).
+      returning; invalid JSON is a retryable failure, not a crash.
 - [ ] **Prompt versioning** — prompt templates live under
       `services/ai-service/prompts` (per the `ai-features` skill); every
       generation returns the `promptVersion` that produced it.
@@ -44,32 +140,30 @@ Everything that lives inside `services/ai-service`. Doesn't touch
       the `ai-features` skill's bar: concise, references the real
       situation, never invents a price/appointment/discount, returns only
       the requested fields.
-- [ ] **AI failure/degraded mode (service side)** — provider timeout,
-      provider error, or output that still fails schema validation after
-      retry returns a typed degraded result, not a thrown 500. Per the
-      `ai-coding` skill: deterministic fallback behavior, no
-      chain-of-thought ever stored.
 - [ ] **`POST /internal/suggestions`** wiring all of the above (per
       [service-boundaries.md](../architecture/service-boundaries.md#services-ai-service)).
 - [ ] Tests per the `ai-coding` skill's "Done" bar: malformed model output,
-      provider failure, prompt-injection-like customer content (customer
-      messages are untrusted data, never instructions).
+      provider failure (primary only, and primary+fallback both), and
+      prompt-injection-like customer content (customer messages are
+      untrusted data, never instructions).
 
 ## Track 2 — Integration + human review (Segev)
 
 Doesn't touch AI provider calls or prompt content at all — builds against
-Track 1's mock provider from day one.
+Track 1's mock provider from day one, using the contract above.
 
 - [ ] **`POST /api/recovery-cases/:id/suggestion`** — calls
       `services/ai-service`'s `/internal/suggestions` with the case's
-      conversation context.
+      conversation context (last outbound message onward, capped at 10 —
+      same rule as the contract).
 - [ ] **Persist the result** — `RecoveryCase.suggestionId` already exists
       on the schema (`services/api/src/db/models.ts:119`,
       `packages/shared/src/domain.ts:79`) but nothing writes to it yet.
-- [ ] **AI failure/degraded mode (API side)** — when the AI service
-      returns degraded or is unreachable, the endpoint responds with a
-      typed error body instead of a 500, so the UI has something sane to
-      render.
+- [ ] **AI failure/degraded mode (API side)** — two distinct cases to
+      handle: a well-formed `status: "degraded"` response, and the AI
+      service being genuinely unreachable (network error/non-2xx). Neither
+      should 500 the whole request; both should give the UI a typed error
+      body to render.
 - [ ] **Dashboard "Recover" flow** — request a suggestion, show it, let a
       human edit it, then approve/mark-as-sent. No real send yet
       ([ADR-002](../decisions/ADR-002-no-real-whatsapp-first.md)) — this
@@ -80,21 +174,21 @@ Track 1's mock provider from day one.
 
 ## Shared — do together, not split
 
-- [ ] **Agree the `SuggestionGenerator` contract before either track
-      starts writing code.** Track 2 needs the exact Zod shape (field
-      names, what's optional, the degraded-mode error shape) to build
-      against the mock provider before Track 1's real adapter exists —
-      same reasoning as Phase 2's transport/idempotency seam: the two
-      sides only fit together if the contract was fixed on purpose, not
-      assumed.
-- [ ] **AI failure/degraded-mode seam.** Once Track 1's degraded result
-      and Track 2's API/UI error handling both exist: deliberately break
-      the AI service (bad `AI_API_KEY`, or a fault injected into the mock
-      provider for the test) and confirm end to end — the AI service
-      doesn't crash, the API doesn't 500 the whole request, and the
-      dashboard shows a clear "couldn't generate a suggestion" state
-      instead of breaking. Worth doing together rather than assuming
-      either side's error handling covers the other.
+- [x] **Agree the `SuggestionGenerator` contract before either track
+      starts writing code** — see above. Same reasoning as Phase 2's
+      transport/idempotency seam: the two sides only fit together if the
+      contract was fixed on purpose, not assumed.
+- [ ] **AI failure/degraded-mode seam.** Once Track 1's retry/fallback +
+      degraded result and Track 2's API/UI error handling both exist:
+      deliberately break the AI service (bad `AI_API_KEY` on both primary
+      and fallback, or a fault injected into the mock provider) and
+      confirm end to end — the AI service doesn't crash, the API doesn't
+      500 the whole request, and the dashboard shows a clear "couldn't
+      generate a suggestion" state instead of breaking. Also worth
+      confirming the *fallback* path specifically: break only the primary
+      and verify a suggestion still comes back successfully with
+      `model` reflecting the fallback. Worth doing together rather than
+      assuming either side's error handling covers the other.
 
 ## Notes
 

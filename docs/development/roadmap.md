@@ -41,6 +41,8 @@ The project is a learning-oriented real system. Ship vertical slices, but intent
 
 - provider-neutral `SuggestionGenerator`
 - one real model adapter
+- fallback model adapter with bounded retry before degrading (see
+  [phase-3-checklist.md](phase-3-checklist.md))
 - structured output with Zod
 - prompt versioning
 - Hebrew follow-up generation
