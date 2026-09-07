@@ -45,11 +45,13 @@ AI roadmap:
 ```bash
 cp .env.example .env       # defaults already match docker-compose.yml
 pnpm install
-docker compose up -d       # MongoDB + Redis
+docker compose up -d --wait  # MongoDB + Redis — waits until both are actually ready
 pnpm dev                   # runs api, recovery-worker, ai-service, and web in parallel, in one terminal
 ```
 
 `pnpm dev` occupies its terminal (it's watching all four services at once) — open a **second terminal** for everything below.
+
+`--wait` matters here: on a cold start (first pull of the `mongo`/`redis` images, or a slow Docker Desktop boot on Windows/Mac) the containers can take longer than `api`'s Mongo connection to become ready. `services/api` and `services/recovery-worker` now retry their Mongo connection with backoff instead of crashing outright, but if you skip `--wait` and see the web dashboard stuck on an error page or the terminal spamming `ECONNREFUSED` on `/api/businesses` right after starting, give it a few seconds — it recovers on its own once Mongo is up. If it doesn't, check `docker compose ps` to confirm both containers are healthy.
 
 Verify the backend is actually up before touching the browser:
 
