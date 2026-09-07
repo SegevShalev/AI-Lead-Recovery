@@ -64,9 +64,40 @@ function toLead(apiCase: ApiRecoveryCase): Lead {
           },
         ]
       : [],
-    // Follow-up drafting is Phase 3 (AI service) — left blank rather than invented.
+    // Starts empty; App fetches a draft via requestSuggestion() once the drawer opens.
     draft: "",
   };
+}
+
+export type SuggestionOutcome =
+  | {
+      status: "ok";
+      suggestionId: string;
+      message: string;
+      reason: string;
+      language: "he";
+      model: string;
+      promptVersion: string;
+      generatedAt: string;
+    }
+  | {
+      status: "degraded";
+      errorCode: "provider_timeout" | "provider_error" | "invalid_output" | "provider_unavailable";
+      message?: string;
+    };
+
+/**
+ * Always resolves (never throws) on a well-formed 200, even when the AI
+ * service failed to generate — that's the "degraded" branch, not a fetch
+ * error. Only a genuinely broken request to services/api itself throws.
+ */
+export async function requestSuggestion(recoveryCaseId: string): Promise<SuggestionOutcome> {
+  const response = await fetch(
+    `/api/recovery-cases/${encodeURIComponent(recoveryCaseId)}/suggestion`,
+    { method: "POST" },
+  );
+  if (!response.ok) throw new Error(`Failed to request a suggestion (${response.status})`);
+  return (await response.json()) as SuggestionOutcome;
 }
 
 /** Phase 1 has no auth/tenant switching yet — use whichever business was seeded. */

@@ -19,7 +19,14 @@ import {
   type StatusMap,
 } from "./lib/dashboard.js";
 import { formatMoney } from "./lib/format.js";
-import { fetchDemoBusiness, fetchOpenLeads } from "./lib/api.js";
+import { fetchDemoBusiness, fetchOpenLeads, requestSuggestion } from "./lib/api.js";
+
+const SUGGESTION_ERROR_MESSAGE: Record<string, string> = {
+  provider_timeout: "The AI service timed out — try again.",
+  provider_error: "The AI service couldn't generate a suggestion — try again.",
+  invalid_output: "The AI service returned something unusable — try again.",
+  provider_unavailable: "Couldn't reach the AI service — try again.",
+};
 
 const TOAST_DURATION_MS = 3200;
 const SEND_CLOSE_DELAY_MS = 650;
@@ -35,12 +42,40 @@ export function App() {
   const [status, setStatus] = useState<StatusMap>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Guards against a slow suggestion response landing after the drawer
+  // moved on to a different lead (or closed).
+  const activeSuggestionLeadId = useRef<string | null>(null);
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  async function loadSuggestion(leadId: string) {
+    activeSuggestionLeadId.current = leadId;
+    setDraftLoading(true);
+    setDraftError(null);
+    try {
+      const outcome = await requestSuggestion(leadId);
+      if (activeSuggestionLeadId.current !== leadId) return;
+      if (outcome.status === "ok") {
+        setDraft(outcome.message);
+      } else {
+        setDraftError(
+          SUGGESTION_ERROR_MESSAGE[outcome.errorCode] ??
+            "Couldn't generate a suggestion — try again.",
+        );
+      }
+    } catch {
+      if (activeSuggestionLeadId.current !== leadId) return;
+      setDraftError("Couldn't reach the server — try again.");
+    } finally {
+      if (activeSuggestionLeadId.current === leadId) setDraftLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -86,10 +121,17 @@ export function App() {
   function openLead(lead: Lead) {
     setSelectedId(lead.id);
     setDraft(lead.draft);
+    setDraftError(null);
     setSent(false);
+    if (lead.draft) {
+      activeSuggestionLeadId.current = null;
+    } else {
+      void loadSuggestion(lead.id);
+    }
   }
 
   function closeDrawer() {
+    activeSuggestionLeadId.current = null;
     setSelectedId(null);
   }
 
@@ -179,10 +221,12 @@ export function App() {
         <LeadDrawer
           lead={selectedLead}
           draft={draft}
+          draftLoading={draftLoading}
+          draftError={draftError}
           sent={sent}
           onClose={closeDrawer}
           onEditDraft={setDraft}
-          onRegenerate={() => setDraft(selectedLead.draft)}
+          onRegenerate={() => loadSuggestion(selectedLead.id)}
           onSend={send}
           onDismiss={dismiss}
         />
