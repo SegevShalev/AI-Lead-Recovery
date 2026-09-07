@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@ai-lead-recovery/shared": "workspace:*",
+    "@aws-sdk/client-sqs": "^3.1126.0",
     "redis": "^4.7.0"
   },
   "devDependencies": {
+    "aws-sdk-client-mock": "^4.1.0",
     "vitest": "^2.1.8"
   }
 }

@@ -23,6 +23,13 @@ services:
       timeout: 5s
       retries: 20
 
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs
+
 volumes:
   mongodb-data:
   redis-data:
