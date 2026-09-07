@@ -31,7 +31,12 @@ export function selectConversationContext(
 ): { direction: MessageDirection; text: string; occurredAt: string }[] {
   const lastOutboundIndex = messages.map((m) => m.direction).lastIndexOf("outbound");
   const relevant = lastOutboundIndex === -1 ? messages : messages.slice(lastOutboundIndex);
-  return relevant.slice(-CONTEXT_MESSAGE_LIMIT).map((m) => ({
+  const [anchor, ...rest] = relevant;
+  const capped =
+    !anchor || relevant.length <= CONTEXT_MESSAGE_LIMIT
+      ? relevant
+      : [anchor, ...rest.slice(-(CONTEXT_MESSAGE_LIMIT - 1))];
+  return capped.map((m) => ({
     direction: m.direction,
     text: m.text,
     occurredAt: m.occurredAt.toISOString(),
