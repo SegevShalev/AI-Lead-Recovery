@@ -69,6 +69,10 @@ export function createSuggestionRouter(deps: { suggestionClient: SuggestionClien
       res.status(404).json({ error: "recovery_case_not_found" });
       return;
     }
+    if (!recoveryCase.customerId) {
+      res.status(404).json({ error: "recovery_case_not_found" });
+      return;
+    }
 
     const messages = await Message.find({ conversationId: recoveryCase.conversationId })
       .sort({ occurredAt: 1 })

@@ -54,6 +54,11 @@ export function App() {
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
+  function updateLeadDraft(leadId: string, value: string) {
+    setDraft(value);
+    setLeads((prev) => prev.map((lead) => (lead.id === leadId ? { ...lead, draft: value } : lead)));
+  }
+
   async function loadSuggestion(leadId: string) {
     activeSuggestionLeadId.current = leadId;
     setDraftLoading(true);
@@ -62,7 +67,7 @@ export function App() {
       const outcome = await requestSuggestion(leadId);
       if (activeSuggestionLeadId.current !== leadId) return;
       if (outcome.status === "ok") {
-        setDraft(outcome.message);
+        updateLeadDraft(leadId, outcome.message);
       } else {
         setDraftError(
           SUGGESTION_ERROR_MESSAGE[outcome.errorCode] ??
@@ -225,7 +230,7 @@ export function App() {
           draftError={draftError}
           sent={sent}
           onClose={closeDrawer}
-          onEditDraft={setDraft}
+          onEditDraft={(value) => updateLeadDraft(selectedLead.id, value)}
           onRegenerate={() => loadSuggestion(selectedLead.id)}
           onSend={send}
           onDismiss={dismiss}
