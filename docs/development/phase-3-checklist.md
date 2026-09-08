@@ -9,11 +9,11 @@ wires it into the app) — swap freely if you'd rather rotate.
 **Exit criteria (roadmap):** the user can request and review a grounded,
 schema-valid follow-up suggestion.
 
-Current state: `services/ai-service` is a health-check skeleton only (no
-`/internal/suggestions` route yet), and there's no
-`POST /api/recovery-cases/:id/suggestion` route on the API side either —
-`apps/web/src/lib/api.ts` already has a `draft: ""` placeholder with a
-comment pointing at this phase. Clean slate on both tracks.
+Current state: `services/ai-service` is still a health-check skeleton (no
+`/internal/suggestions` route yet) — Track 1 hasn't started. Track 2 has:
+`POST /api/recovery-cases/:id/suggestion`, `Suggestion` persistence, and the
+dashboard "Recover" flow, all built and unit-tested against a fake
+`SuggestionClient` since there's no real AI service to call yet.
 
 ## `SuggestionGenerator` contract — decided
 
@@ -58,7 +58,7 @@ export const suggestionRequestSchema = z.object({
   basis.
 
 **Response** — discriminated union, always returned with HTTP 200 (a
-non-2xx/network failure is a *different*, unreachable-service case the API
+non-2xx/network failure is a _different_, unreachable-service case the API
 must handle separately, see below):
 
 ```ts
@@ -152,25 +152,39 @@ Everything that lives inside `services/ai-service`. Doesn't touch
 Doesn't touch AI provider calls or prompt content at all — builds against
 Track 1's mock provider from day one, using the contract above.
 
-- [ ] **`POST /api/recovery-cases/:id/suggestion`** — calls
+- [x] **`POST /api/recovery-cases/:id/suggestion`** — calls
       `services/ai-service`'s `/internal/suggestions` with the case's
       conversation context (last outbound message onward, capped at 10 —
-      same rule as the contract).
-- [ ] **Persist the result** — `RecoveryCase.suggestionId` already exists
+      same rule as the contract). `services/api/src/routes/suggestions.ts`,
+      via the injectable `SuggestionClient` in
+      `services/api/src/aiServiceClient.ts` (new `AI_SERVICE_URL` env var).
+      Built and tested against a fake client, since Track 1's real
+      `/internal/suggestions` doesn't exist yet — re-verify against the real
+      thing once it lands (see the shared seam below).
+- [x] **Persist the result** — `RecoveryCase.suggestionId` already exists
       on the schema (`services/api/src/db/models.ts:119`,
       `packages/shared/src/domain.ts:79`) but nothing writes to it yet.
-- [ ] **AI failure/degraded mode (API side)** — two distinct cases to
+      Added the `Suggestion` model (`services/api/src/db/models.ts`, per
+      [data-model.md](../architecture/data-model.md#suggestion)); the route
+      creates one on a successful generation and stamps its id onto the
+      case.
+- [x] **AI failure/degraded mode (API side)** — two distinct cases to
       handle: a well-formed `status: "degraded"` response, and the AI
       service being genuinely unreachable (network error/non-2xx). Neither
       should 500 the whole request; both should give the UI a typed error
-      body to render.
-- [ ] **Dashboard "Recover" flow** — request a suggestion, show it, let a
+      body to render. Both collapse onto the same
+      `apiSuggestionResponseSchema` "degraded" shape (unreachable maps to
+      `errorCode: "provider_unavailable"`) so apps/web has one failure shape
+      to render.
+- [x] **Dashboard "Recover" flow** — request a suggestion, show it, let a
       human edit it, then approve/mark-as-sent. No real send yet
       ([ADR-002](../decisions/ADR-002-no-real-whatsapp-first.md)) — this
       replaces the `draft: ""` placeholder in `apps/web/src/lib/api.ts`.
       `apps/web` owns human approval/editing of AI suggestions per
       [service-boundaries.md](../architecture/service-boundaries.md#appsweb)
-      but must not call the AI provider directly.
+      but must not call the AI provider directly. Opening a lead with no
+      draft yet auto-requests one; "Rewrite" re-requests; loading/error
+      states added to `LeadDrawer`.
 
 ## Shared — do together, not split
 
@@ -185,7 +199,7 @@ Track 1's mock provider from day one, using the contract above.
       confirm end to end — the AI service doesn't crash, the API doesn't
       500 the whole request, and the dashboard shows a clear "couldn't
       generate a suggestion" state instead of breaking. Also worth
-      confirming the *fallback* path specifically: break only the primary
+      confirming the _fallback_ path specifically: break only the primary
       and verify a suggestion still comes back successfully with
       `model` reflecting the fallback. Worth doing together rather than
       assuming either side's error handling covers the other.

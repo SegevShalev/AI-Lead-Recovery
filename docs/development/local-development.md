@@ -56,5 +56,6 @@ Expected values will eventually include:
 - `WORKER_PORT` (recovery-worker's health check endpoint, default 3002)
 - `AI_PROVIDER`
 - `AI_API_KEY`
+- `AI_SERVICE_URL` (services/api's base URL for calling services/ai-service, default `http://localhost:3001`)
 
 Never put real credentials in source control.
