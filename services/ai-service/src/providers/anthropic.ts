@@ -20,7 +20,7 @@ export class AnthropicSuggestionProvider implements SuggestionProvider {
 
   constructor(options: AnthropicProviderOptions) {
     this.name = options.model ?? DEFAULT_MODEL;
-    this.client = new Anthropic({ apiKey: options.apiKey });
+    this.client = new Anthropic({ apiKey: options.apiKey, timeout: 20_000, maxRetries: 0 });
   }
 
   async generate(input: GenerationInput): Promise<unknown> {

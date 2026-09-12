@@ -32,8 +32,10 @@ async function runWithRetries(
   correlationId: string | undefined,
 ): Promise<AttemptSuccess | AttemptFailure> {
   let lastCode: SuggestionErrorCode = "provider_error";
+  let lastAttempt = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    lastAttempt = attempt;
     let callError: ProviderCallError;
     try {
       const raw = await provider.generate(input);
@@ -76,7 +78,7 @@ async function runWithRetries(
     if (!callError.retryable) break;
   }
 
-  return { ok: false, code: lastCode, attempts: maxAttempts };
+  return { ok: false, code: lastCode, attempts: lastAttempt };
 }
 
 export class SuggestionGenerator {
