@@ -9,11 +9,24 @@ wires it into the app) — swap freely if you'd rather rotate.
 **Exit criteria (roadmap):** the user can request and review a grounded,
 schema-valid follow-up suggestion.
 
-Current state: `services/ai-service` is still a health-check skeleton (no
-`/internal/suggestions` route yet) — Track 1 hasn't started. Track 2 has:
-`POST /api/recovery-cases/:id/suggestion`, `Suggestion` persistence, and the
-dashboard "Recover" flow, all built and unit-tested against a fake
-`SuggestionClient` since there's no real AI service to call yet.
+Current state: both tracks are code-complete, each on its own open PR
+([#6](https://github.com/SegevShalev/AI-Lead-Recovery/pull/6) for Track 1,
+[#7](https://github.com/SegevShalev/AI-Lead-Recovery/pull/7) for Track 2),
+neither merged into `dev` yet. Track 1's `services/ai-service` has a working
+`POST /internal/suggestions` behind `SuggestionGenerator` (mock + Anthropic
+providers, retry/fallback, Hebrew prompt, tests) — code review turned up two
+issues (Anthropic SDK's own retry/timeout stacking on top of the app-level
+retry loop, and a misreported attempt count on the early-break path), both
+fixed in a follow-up commit and re-verified (typecheck clean, 13/13 tests
+pass). Track 2 has `POST /api/recovery-cases/:id/suggestion`, `Suggestion`
+persistence, and the dashboard "Recover" flow, built and unit-tested against
+a fake `SuggestionClient` since Track 1's real service didn't exist yet when
+that work started.
+
+**Before closing out Phase 3:** merge both PRs, then run the shared
+AI failure/degraded-mode seam below against the _real_ `ai-service` (Track 2
+has only exercised it against the fake client so far) — that's the one item
+that can't be verified until both sides land.
 
 ## `SuggestionGenerator` contract — decided
 
@@ -117,35 +130,51 @@ wanted.
 Everything that lives inside `services/ai-service`. Doesn't touch
 `services/api` or `apps/web`.
 
-- [ ] **Provider-neutral `SuggestionGenerator`** implementing the contract
+- [x] **Provider-neutral `SuggestionGenerator`** implementing the contract
       above. Provider SDK types must not leak past this boundary.
-- [ ] **Mock/deterministic provider** — `AI_PROVIDER=mock` is already the
+      [suggestionGenerator.ts](../../services/ai-service/src/suggestionGenerator.ts) —
+      providers return raw `unknown`, the generator alone validates against
+      `modelOutputSchema`.
+- [x] **Mock/deterministic provider** — `AI_PROVIDER=mock` is already the
       `.env.example` default and the README calls it out as acceptable
       until the rest of the app works. Build this first — it's what lets
       Track 2 start immediately without waiting on a model choice or API
       key. Also useful for deliberately exercising the degraded path in
       tests without needing a real provider to fail on demand.
-- [ ] **One real model adapter** — behind the same interface (e.g.
+      [providers/mock.ts](../../services/ai-service/src/providers/mock.ts)
+      takes a `failureMode` option for exactly that.
+- [x] **One real model adapter** — behind the same interface (e.g.
       Anthropic or OpenAI). See the `claude-api` skill for model/pricing
       reference if using Claude.
-- [ ] **Fallback model adapter + retry policy** — implements the
+      [providers/anthropic.ts](../../services/ai-service/src/providers/anthropic.ts),
+      `claude-opus-5` by default. Explicit `timeout: 20_000, maxRetries: 0`
+      on the SDK client so its own retry/timeout budget can't stack on top
+      of `SuggestionGenerator`'s app-level retries (fixed in review — an
+      un-bounded SDK default would have broken the "keep latency bounded"
+      reasoning below).
+- [x] **Fallback model adapter + retry policy** — implements the
       retry/fallback sequence above; add `AI_FALLBACK_PROVIDER` (and its
       own API key var) alongside the existing `AI_PROVIDER`/`AI_API_KEY`.
-- [ ] **Structured output with Zod** — validate model output before
+      [providerFactory.ts](../../services/ai-service/src/providerFactory.ts) +
+      `packages/config/src/env.ts`.
+- [x] **Structured output with Zod** — validate model output before
       returning; invalid JSON is a retryable failure, not a crash.
-- [ ] **Prompt versioning** — prompt templates live under
+- [x] **Prompt versioning** — prompt templates live under
       `services/ai-service/prompts` (per the `ai-features` skill); every
       generation returns the `promptVersion` that produced it.
-- [ ] **Hebrew follow-up generation** — the actual prompt content, held to
+      `hebrew-followup-v1.txt` + [prompts.ts](../../services/ai-service/src/prompts.ts).
+- [x] **Hebrew follow-up generation** — the actual prompt content, held to
       the `ai-features` skill's bar: concise, references the real
       situation, never invents a price/appointment/discount, returns only
       the requested fields.
-- [ ] **`POST /internal/suggestions`** wiring all of the above (per
+- [x] **`POST /internal/suggestions`** wiring all of the above (per
       [service-boundaries.md](../architecture/service-boundaries.md#services-ai-service)).
-- [ ] Tests per the `ai-coding` skill's "Done" bar: malformed model output,
+- [x] Tests per the `ai-coding` skill's "Done" bar: malformed model output,
       provider failure (primary only, and primary+fallback both), and
       prompt-injection-like customer content (customer messages are
       untrusted data, never instructions).
+      `suggestionGenerator.test.ts`, `prompts.test.ts`, `app.test.ts` — 13/13
+      passing as of the latest fix commit.
 
 ## Track 2 — Integration + human review (Segev)
 
@@ -207,9 +236,10 @@ Track 1's mock provider from day one, using the contract above.
 ## Notes
 
 - Phase 4 (RAG) builds directly on top of Track 1's `SuggestionGenerator`
-  (its "context assembly" step feeds straight into generation) — don't
-  start Phase 4 work in parallel with this phase, the interface it needs
-  doesn't exist yet.
+  (its "context assembly" step feeds straight into generation) — the
+  interface now exists, but hold off starting Phase 4 until both PRs above
+  are merged and the shared seam is verified against the real `ai-service`,
+  not the fake client.
 - Follow the normal [branching workflow](branching-and-versioning.md) —
   feature branches off `dev`, one PR per coherent chunk (e.g.
   `feature/ai-suggestion-generator`, `feature/recovery-case-suggestion-flow`),
