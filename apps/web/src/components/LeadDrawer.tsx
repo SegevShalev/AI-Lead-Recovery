@@ -4,6 +4,8 @@ import { formatElapsed, formatMoney } from "../lib/format.js";
 interface LeadDrawerProps {
   lead: Lead;
   draft: string;
+  draftLoading: boolean;
+  draftError: string | null;
   sent: boolean;
   onClose: () => void;
   onEditDraft: (value: string) => void;
@@ -15,6 +17,8 @@ interface LeadDrawerProps {
 export function LeadDrawer({
   lead,
   draft,
+  draftLoading,
+  draftError,
   sent,
   onClose,
   onEditDraft,
@@ -84,17 +88,37 @@ export function LeadDrawer({
               <span className="composer__badge">Suggested follow-up</span>
               <span className="composer__rationale">{lead.rationale}</span>
             </div>
-            <button type="button" className="composer__rewrite" onClick={onRegenerate}>
-              Rewrite
+            <button
+              type="button"
+              className="composer__rewrite"
+              onClick={onRegenerate}
+              disabled={draftLoading}
+            >
+              {draftLoading ? "Drafting…" : "Rewrite"}
             </button>
           </div>
+          {draftError ? (
+            <div className="composer__error">
+              {draftError}
+              <button type="button" className="composer__error-retry" onClick={onRegenerate}>
+                Try again
+              </button>
+            </div>
+          ) : null}
           <textarea
             className="composer__textarea"
             value={draft}
+            disabled={draftLoading}
+            placeholder={draftLoading ? "Drafting a follow-up…" : undefined}
             onChange={(e) => onEditDraft(e.target.value)}
           />
           <div className="composer__actions">
-            <button type="button" className="composer__send" onClick={onSend}>
+            <button
+              type="button"
+              className="composer__send"
+              onClick={onSend}
+              disabled={draftLoading || !draft}
+            >
               {sent ? "Sent ✓" : "Send on WhatsApp"}
             </button>
             <button type="button" className="composer__dismiss" onClick={onDismiss}>

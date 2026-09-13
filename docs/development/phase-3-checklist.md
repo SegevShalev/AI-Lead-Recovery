@@ -9,12 +9,24 @@ wires it into the app) — swap freely if you'd rather rotate.
 **Exit criteria (roadmap):** the user can request and review a grounded,
 schema-valid follow-up suggestion.
 
-Current state: Track 1 is done — `services/ai-service` has a working
-`POST /internal/suggestions` behind the `SuggestionGenerator`
-(mock + Anthropic providers, retry/fallback, Hebrew prompt, tests). Track 2
-is still a clean slate: there's no `POST /api/recovery-cases/:id/suggestion`
-route on the API side yet, and `apps/web/src/lib/api.ts` still has the
-`draft: ""` placeholder with a comment pointing at this phase.
+Current state: both tracks are code-complete. Track 1
+([#6](https://github.com/SegevShalev/AI-Lead-Recovery/pull/6)) is merged
+into `dev` — `services/ai-service` has a working `POST /internal/suggestions`
+behind `SuggestionGenerator` (mock + Anthropic providers, retry/fallback,
+Hebrew prompt, tests); code review turned up two issues (Anthropic SDK's own
+retry/timeout stacking on top of the app-level retry loop, and a misreported
+attempt count on the early-break path), both fixed in a follow-up commit and
+re-verified (typecheck clean, 13/13 tests pass). Track 2
+([#7](https://github.com/SegevShalev/AI-Lead-Recovery/pull/7), still open)
+has `POST /api/recovery-cases/:id/suggestion`, `Suggestion` persistence, and
+the dashboard "Recover" flow, built and unit-tested against a fake
+`SuggestionClient` since Track 1's real service didn't exist yet when that
+work started.
+
+**Before closing out Phase 3:** merge #7, then run the shared
+AI failure/degraded-mode seam below against the _real_ `ai-service` (Track 2
+has only exercised it against the fake client so far) — that's the one item
+that can't be verified until both sides land.
 
 ## `SuggestionGenerator` contract — decided
 
@@ -135,10 +147,14 @@ Everything that lives inside `services/ai-service`. Doesn't touch
       Anthropic or OpenAI). See the `claude-api` skill for model/pricing
       reference if using Claude.
       [providers/anthropic.ts](../../services/ai-service/src/providers/anthropic.ts),
-      `claude-opus-5` by default. Prompts for plain JSON rather than the
-      SDK's `zodOutputFormat` helper (version-incompatible with this repo's
-      pinned zod 3.24 at the time of writing) — the generator's own Zod
-      check is the actual validation gate either way.
+      `claude-opus-5` by default. Explicit `timeout: 20_000, maxRetries: 0`
+      on the SDK client so its own retry/timeout budget can't stack on top
+      of `SuggestionGenerator`'s app-level retries (fixed in review — an
+      un-bounded SDK default would have broken the "keep latency bounded"
+      reasoning below). Prompts for plain JSON rather than the SDK's
+      `zodOutputFormat` helper (version-incompatible with this repo's pinned
+      zod 3.24 at the time of writing) — the generator's own Zod check is
+      the actual validation gate either way.
 - [x] **Fallback model adapter + retry policy** — implements the
       retry/fallback sequence above; add `AI_FALLBACK_PROVIDER` (and its
       own API key var) alongside the existing `AI_PROVIDER`/`AI_API_KEY`.
@@ -160,32 +176,47 @@ Everything that lives inside `services/ai-service`. Doesn't touch
       provider failure (primary only, and primary+fallback both), and
       prompt-injection-like customer content (customer messages are
       untrusted data, never instructions).
-      `suggestionGenerator.test.ts`, `prompts.test.ts`, `app.test.ts`.
+      `suggestionGenerator.test.ts`, `prompts.test.ts`, `app.test.ts` — 13/13
+      passing as of the latest fix commit.
 
 ## Track 2 — Integration + human review (Segev)
 
 Doesn't touch AI provider calls or prompt content at all — builds against
 Track 1's mock provider from day one, using the contract above.
 
-- [ ] **`POST /api/recovery-cases/:id/suggestion`** — calls
+- [x] **`POST /api/recovery-cases/:id/suggestion`** — calls
       `services/ai-service`'s `/internal/suggestions` with the case's
       conversation context (last outbound message onward, capped at 10 —
-      same rule as the contract).
-- [ ] **Persist the result** — `RecoveryCase.suggestionId` already exists
+      same rule as the contract). `services/api/src/routes/suggestions.ts`,
+      via the injectable `SuggestionClient` in
+      `services/api/src/aiServiceClient.ts` (new `AI_SERVICE_URL` env var).
+      Built and tested against a fake client, since Track 1's real
+      `/internal/suggestions` doesn't exist yet — re-verify against the real
+      thing once it lands (see the shared seam below).
+- [x] **Persist the result** — `RecoveryCase.suggestionId` already exists
       on the schema (`services/api/src/db/models.ts:119`,
       `packages/shared/src/domain.ts:79`) but nothing writes to it yet.
-- [ ] **AI failure/degraded mode (API side)** — two distinct cases to
+      Added the `Suggestion` model (`services/api/src/db/models.ts`, per
+      [data-model.md](../architecture/data-model.md#suggestion)); the route
+      creates one on a successful generation and stamps its id onto the
+      case.
+- [x] **AI failure/degraded mode (API side)** — two distinct cases to
       handle: a well-formed `status: "degraded"` response, and the AI
       service being genuinely unreachable (network error/non-2xx). Neither
       should 500 the whole request; both should give the UI a typed error
-      body to render.
-- [ ] **Dashboard "Recover" flow** — request a suggestion, show it, let a
+      body to render. Both collapse onto the same
+      `apiSuggestionResponseSchema` "degraded" shape (unreachable maps to
+      `errorCode: "provider_unavailable"`) so apps/web has one failure shape
+      to render.
+- [x] **Dashboard "Recover" flow** — request a suggestion, show it, let a
       human edit it, then approve/mark-as-sent. No real send yet
       ([ADR-002](../decisions/ADR-002-no-real-whatsapp-first.md)) — this
       replaces the `draft: ""` placeholder in `apps/web/src/lib/api.ts`.
       `apps/web` owns human approval/editing of AI suggestions per
       [service-boundaries.md](../architecture/service-boundaries.md#appsweb)
-      but must not call the AI provider directly.
+      but must not call the AI provider directly. Opening a lead with no
+      draft yet auto-requests one; "Rewrite" re-requests; loading/error
+      states added to `LeadDrawer`.
 
 ## Shared — do together, not split
 
@@ -208,9 +239,10 @@ Track 1's mock provider from day one, using the contract above.
 ## Notes
 
 - Phase 4 (RAG) builds directly on top of Track 1's `SuggestionGenerator`
-  (its "context assembly" step feeds straight into generation) — don't
-  start Phase 4 work in parallel with this phase, the interface it needs
-  doesn't exist yet.
+  (its "context assembly" step feeds straight into generation) — the
+  interface now exists, but hold off starting Phase 4 until both PRs above
+  are merged and the shared seam is verified against the real `ai-service`,
+  not the fake client.
 - Follow the normal [branching workflow](branching-and-versioning.md) —
   feature branches off `dev`, one PR per coherent chunk (e.g.
   `feature/ai-suggestion-generator`, `feature/recovery-case-suggestion-flow`),

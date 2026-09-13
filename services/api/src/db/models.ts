@@ -146,3 +146,37 @@ const recoveryCaseSchema = new Schema<RecoveryCaseDoc>(
 recoveryCaseSchema.index({ businessId: 1, status: 1, detectedAt: -1 });
 
 export const RecoveryCase = model<RecoveryCaseDoc>("RecoveryCase", recoveryCaseSchema);
+
+/**
+ * One row per generated AI follow-up (docs/architecture/data-model.md#suggestion).
+ * `reasoningSummary` is the model's short user-facing rationale, never
+ * chain-of-thought (docs/architecture/ai-architecture.md). Immutable once
+ * created, so no `updatedAt`.
+ */
+interface SuggestionDoc {
+  recoveryCaseId: mongoose.Types.ObjectId;
+  businessId: mongoose.Types.ObjectId;
+  language: "he";
+  message: string;
+  reasoningSummary: string;
+  model: string;
+  promptVersion: string;
+  retrievalContextVersion?: string;
+}
+
+const suggestionSchema = new Schema<SuggestionDoc>(
+  {
+    recoveryCaseId: { type: Schema.Types.ObjectId, ref: "RecoveryCase", required: true },
+    businessId: { type: Schema.Types.ObjectId, ref: "Business", required: true },
+    language: { type: String, enum: ["he"], required: true },
+    message: { type: String, required: true },
+    reasoningSummary: { type: String, required: true },
+    model: { type: String, required: true },
+    promptVersion: { type: String, required: true },
+    retrievalContextVersion: { type: String },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } },
+);
+suggestionSchema.index({ recoveryCaseId: 1, createdAt: -1 });
+
+export const Suggestion = model<SuggestionDoc>("Suggestion", suggestionSchema);

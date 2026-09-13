@@ -12,6 +12,7 @@ export const envSchema = z
     AWS_REGION: z.string().optional(),
     AI_PROVIDER: z.enum(["mock", "openai", "anthropic", "bedrock"]).default("mock"),
     AI_API_KEY: z.string().optional(),
+    AI_SERVICE_URL: z.string().min(1).default("http://localhost:3001"),
     AI_FALLBACK_PROVIDER: z.enum(["mock", "openai", "anthropic", "bedrock"]).optional(),
     AI_FALLBACK_API_KEY: z.string().optional(),
     UNANSWERED_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(60),

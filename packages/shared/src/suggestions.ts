@@ -2,8 +2,9 @@ import { z } from "zod";
 import { messageDirectionSchema, recoveryCaseTypeSchema } from "./domain.js";
 
 /**
- * Contract locked in docs/development/phase-3-checklist.md so Track 2 can
- * build against the mock provider before Track 1's real adapter exists.
+ * Contract between services/api and services/ai-service's
+ * `POST /internal/suggestions` (docs/development/phase-3-checklist.md).
+ * Both services import these types so the boundary can't silently drift.
  */
 export const suggestionRequestSchema = z.object({
   recoveryCaseId: z.string(),
@@ -52,10 +53,29 @@ export const suggestionDegradedSchema = z.object({
 });
 export type SuggestionDegraded = z.infer<typeof suggestionDegradedSchema>;
 
-// Always returned with HTTP 200 - an unreachable ai-service is a different,
-// separate case the caller must handle (network error/non-2xx).
+/** Always returned with HTTP 200 by the AI service — see phase-3-checklist.md. */
 export const suggestionResponseSchema = z.discriminatedUnion("status", [
   suggestionResultSchema,
   suggestionDegradedSchema,
 ]);
 export type SuggestionResponse = z.infer<typeof suggestionResponseSchema>;
+
+/**
+ * services/api's own response to `POST /api/recovery-cases/:id/suggestion`.
+ * A superset of `suggestionResponseSchema`: the "ok" branch adds the id of
+ * the persisted Suggestion record, and the AI service being unreachable
+ * (as opposed to reachable-but-degraded) is folded into the same "degraded"
+ * shape with errorCode "provider_unavailable" so apps/web only has one
+ * failure shape to render, per docs/development/phase-3-checklist.md's
+ * "AI failure/degraded mode (API side)" item.
+ */
+export const apiSuggestionResultSchema = suggestionResultSchema.extend({
+  suggestionId: z.string(),
+});
+export type ApiSuggestionResult = z.infer<typeof apiSuggestionResultSchema>;
+
+export const apiSuggestionResponseSchema = z.discriminatedUnion("status", [
+  apiSuggestionResultSchema,
+  suggestionDegradedSchema,
+]);
+export type ApiSuggestionResponse = z.infer<typeof apiSuggestionResponseSchema>;

@@ -717,6 +717,29 @@ a:hover {
 .composer__rewrite:hover {
   color: var(--ink);
 }
+.composer__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(192, 57, 43, 0.08);
+  color: var(--danger);
+  font-size: 13px;
+}
+.composer__error-retry {
+  flex: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--danger);
+  text-decoration: underline;
+  padding: 0;
+}
 .composer__textarea {
   width: 100%;
   box-sizing: border-box;
@@ -730,6 +753,10 @@ a:hover {
   color: var(--ink);
   background: #fff;
   min-height: 104px;
+}
+.composer__textarea:disabled {
+  color: var(--muted);
+  background: rgba(20, 19, 15, 0.03);
 }
 .composer__textarea:focus {
   border-color: var(--green-text);
@@ -755,6 +782,11 @@ a:hover {
 }
 .composer__send:hover {
   background: #2a2721;
+}
+.composer__send:disabled,
+.composer__rewrite:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .composer__dismiss {
   border: 1px solid var(--border-strong);
