@@ -9,11 +9,12 @@ wires it into the app) — swap freely if you'd rather rotate.
 **Exit criteria (roadmap):** the user can request and review a grounded,
 schema-valid follow-up suggestion.
 
-Current state: `services/ai-service` is a health-check skeleton only (no
-`/internal/suggestions` route yet), and there's no
-`POST /api/recovery-cases/:id/suggestion` route on the API side either —
-`apps/web/src/lib/api.ts` already has a `draft: ""` placeholder with a
-comment pointing at this phase. Clean slate on both tracks.
+Current state: Track 1 is done — `services/ai-service` has a working
+`POST /internal/suggestions` behind the `SuggestionGenerator`
+(mock + Anthropic providers, retry/fallback, Hebrew prompt, tests). Track 2
+is still a clean slate: there's no `POST /api/recovery-cases/:id/suggestion`
+route on the API side yet, and `apps/web/src/lib/api.ts` still has the
+`draft: ""` placeholder with a comment pointing at this phase.
 
 ## `SuggestionGenerator` contract — decided
 
@@ -58,7 +59,7 @@ export const suggestionRequestSchema = z.object({
   basis.
 
 **Response** — discriminated union, always returned with HTTP 200 (a
-non-2xx/network failure is a *different*, unreachable-service case the API
+non-2xx/network failure is a _different_, unreachable-service case the API
 must handle separately, see below):
 
 ```ts
@@ -117,35 +118,49 @@ wanted.
 Everything that lives inside `services/ai-service`. Doesn't touch
 `services/api` or `apps/web`.
 
-- [ ] **Provider-neutral `SuggestionGenerator`** implementing the contract
+- [x] **Provider-neutral `SuggestionGenerator`** implementing the contract
       above. Provider SDK types must not leak past this boundary.
-- [ ] **Mock/deterministic provider** — `AI_PROVIDER=mock` is already the
+      [suggestionGenerator.ts](../../services/ai-service/src/suggestionGenerator.ts) —
+      providers return raw `unknown`, the generator alone validates against
+      `modelOutputSchema`.
+- [x] **Mock/deterministic provider** — `AI_PROVIDER=mock` is already the
       `.env.example` default and the README calls it out as acceptable
       until the rest of the app works. Build this first — it's what lets
       Track 2 start immediately without waiting on a model choice or API
       key. Also useful for deliberately exercising the degraded path in
       tests without needing a real provider to fail on demand.
-- [ ] **One real model adapter** — behind the same interface (e.g.
+      [providers/mock.ts](../../services/ai-service/src/providers/mock.ts)
+      takes a `failureMode` option for exactly that.
+- [x] **One real model adapter** — behind the same interface (e.g.
       Anthropic or OpenAI). See the `claude-api` skill for model/pricing
       reference if using Claude.
-- [ ] **Fallback model adapter + retry policy** — implements the
+      [providers/anthropic.ts](../../services/ai-service/src/providers/anthropic.ts),
+      `claude-opus-5` by default. Prompts for plain JSON rather than the
+      SDK's `zodOutputFormat` helper (version-incompatible with this repo's
+      pinned zod 3.24 at the time of writing) — the generator's own Zod
+      check is the actual validation gate either way.
+- [x] **Fallback model adapter + retry policy** — implements the
       retry/fallback sequence above; add `AI_FALLBACK_PROVIDER` (and its
       own API key var) alongside the existing `AI_PROVIDER`/`AI_API_KEY`.
-- [ ] **Structured output with Zod** — validate model output before
+      [providerFactory.ts](../../services/ai-service/src/providerFactory.ts) +
+      `packages/config/src/env.ts`.
+- [x] **Structured output with Zod** — validate model output before
       returning; invalid JSON is a retryable failure, not a crash.
-- [ ] **Prompt versioning** — prompt templates live under
+- [x] **Prompt versioning** — prompt templates live under
       `services/ai-service/prompts` (per the `ai-features` skill); every
       generation returns the `promptVersion` that produced it.
-- [ ] **Hebrew follow-up generation** — the actual prompt content, held to
+      `hebrew-followup-v1.txt` + [prompts.ts](../../services/ai-service/src/prompts.ts).
+- [x] **Hebrew follow-up generation** — the actual prompt content, held to
       the `ai-features` skill's bar: concise, references the real
       situation, never invents a price/appointment/discount, returns only
       the requested fields.
-- [ ] **`POST /internal/suggestions`** wiring all of the above (per
+- [x] **`POST /internal/suggestions`** wiring all of the above (per
       [service-boundaries.md](../architecture/service-boundaries.md#services-ai-service)).
-- [ ] Tests per the `ai-coding` skill's "Done" bar: malformed model output,
+- [x] Tests per the `ai-coding` skill's "Done" bar: malformed model output,
       provider failure (primary only, and primary+fallback both), and
       prompt-injection-like customer content (customer messages are
       untrusted data, never instructions).
+      `suggestionGenerator.test.ts`, `prompts.test.ts`, `app.test.ts`.
 
 ## Track 2 — Integration + human review (Segev)
 
@@ -185,7 +200,7 @@ Track 1's mock provider from day one, using the contract above.
       confirm end to end — the AI service doesn't crash, the API doesn't
       500 the whole request, and the dashboard shows a clear "couldn't
       generate a suggestion" state instead of breaking. Also worth
-      confirming the *fallback* path specifically: break only the primary
+      confirming the _fallback_ path specifically: break only the primary
       and verify a suggestion still comes back successfully with
       `model` reflecting the fallback. Worth doing together rather than
       assuming either side's error handling covers the other.
