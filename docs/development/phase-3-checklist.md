@@ -9,21 +9,21 @@ wires it into the app) — swap freely if you'd rather rotate.
 **Exit criteria (roadmap):** the user can request and review a grounded,
 schema-valid follow-up suggestion.
 
-Current state: both tracks are code-complete, each on its own open PR
-([#6](https://github.com/SegevShalev/AI-Lead-Recovery/pull/6) for Track 1,
-[#7](https://github.com/SegevShalev/AI-Lead-Recovery/pull/7) for Track 2),
-neither merged into `dev` yet. Track 1's `services/ai-service` has a working
-`POST /internal/suggestions` behind `SuggestionGenerator` (mock + Anthropic
-providers, retry/fallback, Hebrew prompt, tests) — code review turned up two
-issues (Anthropic SDK's own retry/timeout stacking on top of the app-level
-retry loop, and a misreported attempt count on the early-break path), both
-fixed in a follow-up commit and re-verified (typecheck clean, 13/13 tests
-pass). Track 2 has `POST /api/recovery-cases/:id/suggestion`, `Suggestion`
-persistence, and the dashboard "Recover" flow, built and unit-tested against
-a fake `SuggestionClient` since Track 1's real service didn't exist yet when
-that work started.
+Current state: both tracks are code-complete. Track 1
+([#6](https://github.com/SegevShalev/AI-Lead-Recovery/pull/6)) is merged
+into `dev` — `services/ai-service` has a working `POST /internal/suggestions`
+behind `SuggestionGenerator` (mock + Anthropic providers, retry/fallback,
+Hebrew prompt, tests); code review turned up two issues (Anthropic SDK's own
+retry/timeout stacking on top of the app-level retry loop, and a misreported
+attempt count on the early-break path), both fixed in a follow-up commit and
+re-verified (typecheck clean, 13/13 tests pass). Track 2
+([#7](https://github.com/SegevShalev/AI-Lead-Recovery/pull/7), still open)
+has `POST /api/recovery-cases/:id/suggestion`, `Suggestion` persistence, and
+the dashboard "Recover" flow, built and unit-tested against a fake
+`SuggestionClient` since Track 1's real service didn't exist yet when that
+work started.
 
-**Before closing out Phase 3:** merge both PRs, then run the shared
+**Before closing out Phase 3:** merge #7, then run the shared
 AI failure/degraded-mode seam below against the _real_ `ai-service` (Track 2
 has only exercised it against the fake client so far) — that's the one item
 that can't be verified until both sides land.
@@ -151,7 +151,10 @@ Everything that lives inside `services/ai-service`. Doesn't touch
       on the SDK client so its own retry/timeout budget can't stack on top
       of `SuggestionGenerator`'s app-level retries (fixed in review — an
       un-bounded SDK default would have broken the "keep latency bounded"
-      reasoning below).
+      reasoning below). Prompts for plain JSON rather than the SDK's
+      `zodOutputFormat` helper (version-incompatible with this repo's pinned
+      zod 3.24 at the time of writing) — the generator's own Zod check is
+      the actual validation gate either way.
 - [x] **Fallback model adapter + retry policy** — implements the
       retry/fallback sequence above; add `AI_FALLBACK_PROVIDER` (and its
       own API key var) alongside the existing `AI_PROVIDER`/`AI_API_KEY`.

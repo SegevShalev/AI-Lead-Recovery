@@ -13,6 +13,7 @@ export const suggestionRequestSchema = z.object({
   reason: z.string(),
   estimatedValue: z.number().nonnegative(),
   customer: z.object({ displayName: z.string(), phone: z.string() }),
+  // Last outbound message onward, capped at 10 - selected by the caller (API).
   conversationContext: z
     .array(
       z.object({
@@ -26,6 +27,14 @@ export const suggestionRequestSchema = z.object({
 });
 export type SuggestionRequest = z.infer<typeof suggestionRequestSchema>;
 
+export const suggestionErrorCodeSchema = z.enum([
+  "provider_timeout",
+  "provider_error",
+  "invalid_output",
+  "provider_unavailable",
+]);
+export type SuggestionErrorCode = z.infer<typeof suggestionErrorCodeSchema>;
+
 export const suggestionResultSchema = z.object({
   status: z.literal("ok"),
   message: z.string(),
@@ -37,17 +46,9 @@ export const suggestionResultSchema = z.object({
 });
 export type SuggestionResult = z.infer<typeof suggestionResultSchema>;
 
-export const suggestionDegradedErrorCodeSchema = z.enum([
-  "provider_timeout",
-  "provider_error",
-  "invalid_output",
-  "provider_unavailable",
-]);
-export type SuggestionDegradedErrorCode = z.infer<typeof suggestionDegradedErrorCodeSchema>;
-
 export const suggestionDegradedSchema = z.object({
   status: z.literal("degraded"),
-  errorCode: suggestionDegradedErrorCodeSchema,
+  errorCode: suggestionErrorCodeSchema,
   message: z.string().optional(),
 });
 export type SuggestionDegraded = z.infer<typeof suggestionDegradedSchema>;
