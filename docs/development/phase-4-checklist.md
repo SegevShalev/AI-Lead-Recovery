@@ -9,6 +9,10 @@ that wires it into the API and dashboard) — swap freely.
 **Exit criteria (roadmap):** the model can use business-specific facts without
 putting those facts into the prompt manually each time.
 
+**New to vectors/RAG?** Start with the [RAG playground](rag-playground.md)
+(~20 min, local only) — it demonstrates why the `businessId` filter and the
+score threshold below matter, on real embeddings.
+
 **Prerequisite:** Phase 3's shared degraded-mode seam is still unchecked. Do it
 before (or at the very start of) Phase 4 — Phase 4 changes the same
 `SuggestionGenerator` path, so a broken failure path is easier to find now.
@@ -120,7 +124,10 @@ Doesn't touch `services/api` or `apps/web`.
 - [ ] **`POST /internal/knowledge/index` + `DELETE`** per the contract.
 - [ ] **Retriever** — builds the query from the conversation context (latest
       inbound messages + case reason), embeds it, top-k (k=5, with a minimum
-      score so irrelevant chunks are dropped).
+      score so irrelevant chunks are dropped). **Tune the threshold on the
+      eval set, don't guess it** — in the [playground](rag-playground.md) run
+      a correct match scored only 0.28 while an irrelevant one scored 0.46,
+      so a naive 0.3 cut would have dropped the right answer.
 - [ ] **Context assembly** — new prompt version (`hebrew-followup-v2`) with a
       `<business_knowledge>` block. Retrieved text is untrusted data, same
       treatment as `<conversation_context>`.
@@ -167,10 +174,24 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 - [ ] **Degrade seam** — stop the embedding provider (bad key); suggestion
       still comes back, marked `retrieval.status: "failed"`, dashboard says
       no knowledge was used.
-- [ ] **Small eval (exit evidence)** — 5–10 seeded cases, generate with and
-      without RAG, compare by hand: correct facts? any invented facts? Per
-      AGENTS.md, don't claim RAG helps until this shows it. Record results in
-      the PR.
+- [ ] **Eval set (build early, reuse on every change)** — a fixed list of
+      10–20 customer questions against the seeded garages, each labelled with
+      the knowledge chunk that _should_ come back (and some with no correct
+      chunk, to check we return nothing rather than noise). Checked into the
+      repo so every chunking/threshold/model/prompt change is measured on the
+      same set, not eyeballed on two examples.
+- [ ] **Three-way comparison (exit evidence)** — run the eval set through: 1. **no knowledge** — today's Phase 3 behaviour; 2. **all knowledge** — every chunk of the business pasted into the
+      prompt, no retrieval (a garage has tens of chunks, so this is a real
+      option, not a strawman); 3. **RAG** — retrieval as built above.
+      Measure: retrieval hit rate (right chunk in top-k, for 3), correct facts
+      in the message, invented facts in the message, prompt tokens per
+      request (cost). Per AGENTS.md, don't claim RAG helps until this shows
+      it. If "all knowledge" wins at our data size, that's a legitimate result
+      — keep it and record why. Results go in the PR.
+- [ ] **Improve against the eval, one change at a time** — levers in rough
+      order of cost: chunking, query construction (last message vs whole
+      window), k + score threshold, embedding model, hybrid lexical search,
+      reranking, prompt wording. Re-run the full set after each change.
 
 ## After exit (not blocking)
 
