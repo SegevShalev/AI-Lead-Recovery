@@ -7,6 +7,47 @@
       "runtimeArgs": ["--filter", "@ai-lead-recovery/web", "run", "dev"],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ai-lead-recovery/api", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "recovery-worker",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ai-lead-recovery/recovery-worker", "run", "dev"],
+      "port": 3002
+    },
+    {
+      "name": "ai-service",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ai-lead-recovery/ai-service", "run", "dev"],
+      "port": 3001
+    },
+    {
+      "name": "ai-service-both-broken",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ai-lead-recovery/ai-service", "run", "dev"],
+      "port": 3001,
+      "env": {
+        "AI_PROVIDER": "anthropic",
+        "AI_API_KEY": "sk-ant-invalid-seam-test",
+        "AI_FALLBACK_PROVIDER": "anthropic",
+        "AI_FALLBACK_API_KEY": "sk-ant-invalid-seam-test"
+      }
+    },
+    {
+      "name": "ai-service-primary-broken",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ai-lead-recovery/ai-service", "run", "dev"],
+      "port": 3001,
+      "env": {
+        "AI_PROVIDER": "anthropic",
+        "AI_API_KEY": "sk-ant-invalid-seam-test",
+        "AI_FALLBACK_PROVIDER": "mock"
+      }
     }
   ]
 }
