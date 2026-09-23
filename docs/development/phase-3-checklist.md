@@ -236,28 +236,29 @@ Track 1's mock provider from day one, using the contract above.
       `model` reflecting the fallback. Worth doing together rather than
       assuming either side's error handling covers the other.
 
-      **Verified 2026-09-22 (Erez)** against the real `ai-service`, API,
-          recovery-worker and dashboard on seeded data (launch configs
-          `ai-service-both-broken` / `ai-service-primary-broken` in
-          `.claude/launch.json`):
-          - both broken (invalid Anthropic key on primary + fallback) → auth
-            error is non-retryable, so 1 primary attempt + 1 fallback attempt,
-            then API returns HTTP 200 `{status: "degraded", errorCode:
-            "provider_unavailable"}` in ~1.5s; ai-service stays up.
-          - primary broken, fallback `mock` → HTTP 200 `status: "ok"`,
-            `model: "mock"`, log shows `servedByFallback: true`, suggestion
-            persisted.
-          - ai-service stopped → API maps the network failure to the same
-            degraded body (logged separately as `clientError: "unreachable"`),
-            API health stays 200. Dashboard shows "Couldn't reach the AI
-            service — try again", "Send on WhatsApp" is disabled, and "Try
-            again" succeeds once ai-service is back.
+  **Verified 2026-09-22 (Erez)** against the real `ai-service`, API,
+  recovery-worker and dashboard on seeded data (launch configs
+  `ai-service-both-broken` / `ai-service-primary-broken` in
+  `.claude/launch.json`):
+  - both broken (invalid Anthropic key on primary + fallback) → auth
+    error is non-retryable, so 1 primary attempt + 1 fallback attempt,
+    then API returns HTTP 200
+    `{status: "degraded", errorCode: "provider_unavailable"}` in ~1.5s;
+    ai-service stays up.
+  - primary broken, fallback `mock` → HTTP 200 `status: "ok"`,
+    `model: "mock"`, log shows `servedByFallback: true`, suggestion
+    persisted.
+  - ai-service stopped → API maps the network failure to the same
+    degraded body (logged separately as `clientError: "unreachable"`),
+    API health stays 200. Dashboard shows "Couldn't reach the AI
+    service — try again", "Send on WhatsApp" is disabled, and "Try
+    again" succeeds once ai-service is back.
 
-          Follow-up (not blocking): `AnthropicSuggestionProvider` has no model
-          override from env, so `AI_PROVIDER=anthropic` +
-          `AI_FALLBACK_PROVIDER=anthropic` falls back to the *same* model. A
-          real fallback should be a different model (or provider) — add e.g.
-          `AI_FALLBACK_MODEL` when a real key is in use.
+  Follow-up (not blocking): `AnthropicSuggestionProvider` has no model
+  override from env, so `AI_PROVIDER=anthropic` +
+  `AI_FALLBACK_PROVIDER=anthropic` falls back to the _same_ model. A
+  real fallback should be a different model (or provider) — add e.g.
+  `AI_FALLBACK_MODEL` when a real key is in use.
 
 ## Notes
 
