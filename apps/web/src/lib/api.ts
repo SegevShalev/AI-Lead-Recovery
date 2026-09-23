@@ -1,6 +1,6 @@
 import type { Lead, LeadKind } from "../data/leads.js";
 
-interface ApiBusiness {
+export interface ApiBusiness {
   _id: string;
   name: string;
 }
@@ -79,6 +79,9 @@ export type SuggestionOutcome =
       model: string;
       promptVersion: string;
       generatedAt: string;
+      retrieval: { status: "used" | "empty" | "failed" };
+      /** Documents the suggestion was grounded on, resolved by services/api. */
+      knowledgeDocuments: { documentId: string; title: string }[];
     }
   | {
       status: "degraded";
@@ -115,4 +118,90 @@ export async function fetchOpenLeads(businessId: string): Promise<Lead[]> {
   if (!response.ok) throw new Error(`Failed to load recovery cases (${response.status})`);
   const body = (await response.json()) as { cases: ApiRecoveryCase[] };
   return body.cases.map(toLead);
+}
+
+export type KnowledgeDocumentType = "service" | "policy" | "faq" | "style" | "example" | "other";
+
+/** Mirrors businessKnowledgeDocumentSchema in packages/shared/src/knowledge.ts. */
+export interface KnowledgeDocument {
+  _id: string;
+  businessId: string;
+  type: KnowledgeDocumentType;
+  title: string;
+  content: string;
+  version: number;
+  /** "pending" = saved, but the AI can't use it until the AI service indexes it. */
+  indexStatus: "indexed" | "pending";
+  updatedAt: string;
+}
+
+export interface KnowledgeDocumentInput {
+  type: KnowledgeDocumentType;
+  title: string;
+  content: string;
+}
+
+function knowledgeUrl(businessId: string, documentId?: string, suffix = ""): string {
+  const base = `/api/businesses/${encodeURIComponent(businessId)}/knowledge`;
+  return documentId ? `${base}/${encodeURIComponent(documentId)}${suffix}` : base;
+}
+
+async function documentFrom(response: Response, action: string): Promise<KnowledgeDocument> {
+  if (!response.ok) throw new Error(`Failed to ${action} (${response.status})`);
+  return ((await response.json()) as { document: KnowledgeDocument }).document;
+}
+
+export async function fetchKnowledge(businessId: string): Promise<KnowledgeDocument[]> {
+  const response = await fetch(knowledgeUrl(businessId));
+  if (!response.ok) throw new Error(`Failed to load business knowledge (${response.status})`);
+  return ((await response.json()) as { documents: KnowledgeDocument[] }).documents;
+}
+
+export async function createKnowledge(
+  businessId: string,
+  input: KnowledgeDocumentInput,
+): Promise<KnowledgeDocument> {
+  const response = await fetch(knowledgeUrl(businessId), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return documentFrom(response, "save");
+}
+
+export async function updateKnowledge(
+  businessId: string,
+  documentId: string,
+  input: KnowledgeDocumentInput,
+): Promise<KnowledgeDocument> {
+  const response = await fetch(knowledgeUrl(businessId, documentId), {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return documentFrom(response, "save");
+}
+
+export async function reindexKnowledge(
+  businessId: string,
+  documentId: string,
+): Promise<KnowledgeDocument> {
+  const response = await fetch(knowledgeUrl(businessId, documentId, "/reindex"), {
+    method: "POST",
+  });
+  return documentFrom(response, "retry");
+}
+
+/**
+ * "index_unavailable" (503): the AI service couldn't forget the document, so
+ * services/api kept it rather than leave stale facts retrievable.
+ */
+export async function deleteKnowledge(
+  businessId: string,
+  documentId: string,
+): Promise<"deleted" | "index_unavailable"> {
+  const response = await fetch(knowledgeUrl(businessId, documentId), { method: "DELETE" });
+  if (response.status === 503) return "index_unavailable";
+  if (!response.ok) throw new Error(`Failed to delete (${response.status})`);
+  return "deleted";
 }

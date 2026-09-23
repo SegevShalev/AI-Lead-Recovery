@@ -164,20 +164,24 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 - [x] **`BusinessKnowledgeDocument` model** in `services/api` per
       [data-model.md](../architecture/data-model.md#businessknowledgedocument)
       (index `{businessId, type, version}`), plus Zod schema in shared.
-- [ ] **CRUD routes** `/api/businesses/:businessId/knowledge` — every write
+- [x] **CRUD routes** `/api/businesses/:businessId/knowledge` — every write
       bumps `version` and calls `/internal/knowledge/index` (or `DELETE`).
       If the AI service is down: save the document anyway, mark it
       `indexStatus: "pending"`, and expose a "reindex" action — don't lose the
-      owner's edit.
+      owner's edit. **Delete is the exception:** it removes from the index
+      first and keeps the document (503) if it can't, so a deleted price can't
+      stay retrievable. DELETE of a document the AI service never indexed
+      should still return 204 (idempotent) — Track 1, please match.
 - [x] **Seed data** — Hebrew garage knowledge for _two_ businesses
       (price list, hours, warranty policy), with deliberately different
       prices so a leak is obvious. Data in
       [`fixtures/knowledge/garages.json`](../../fixtures/knowledge/README.md),
       loaded idempotently by `services/api/src/scripts/seed.ts`
       (`seed south` targets the second garage's conversation).
-- [ ] **Persist retrieval metadata** — `Suggestion.retrievalContextVersion` +
-      source ids from the new `retrieval` field.
-- [ ] **Dashboard** — a simple knowledge page (list/add/edit/delete) and, in
+- [x] **Persist retrieval metadata** — `Suggestion.retrievalContextVersion` +
+      source ids from the new `retrieval` field (plus `retrievalStatus`). The
+      API response adds `knowledgeDocuments` (titles, same business only).
+- [x] **Dashboard** — a simple knowledge page (list/add/edit/delete) and, in
       the Recover flow, a "based on:" line showing which documents the
       suggestion used (or "no business knowledge used").
 
