@@ -2,9 +2,7 @@
 
 Working split for Phase 4 of the [roadmap](roadmap.md). Same shape as
 [Phase 3](phase-3-checklist.md): two tracks, plus seams both of us verify
-together. Default mapping carries over (Erez = the track that builds new
-machinery behind an interface inside `services/ai-service`, Segev = the track
-that wires it into the API and dashboard) — swap freely.
+together. Tracks are swapped this phase.
 
 **Exit criteria (roadmap):** the model can use business-specific facts without
 putting those facts into the prompt manually each time.
@@ -21,7 +19,7 @@ Current state: clean slate. No `BusinessKnowledgeDocument` model in
 `services/api`, and `services/ai-service` has no storage at all yet —
 retrieval needs one.
 
-## Decisions — agreed by Erez, pending Segev's OK
+## Decisions — agreed by Erez and Segev
 
 1. **Ownership split (follows [data-model.md](../architecture/data-model.md#businessknowledgedocument)).**
    The API owns the _source_ documents (`BusinessKnowledgeDocument`, CRUD).
@@ -58,7 +56,7 @@ retrieval needs one.
 5. **Suggestion request is unchanged.** The AI service already receives
    `businessId`; it runs retrieval itself. The API doesn't pick facts.
 
-## Contract additions — pending Segev's OK
+## Contract additions — agreed by Erez and Segev
 
 Lives in `packages/shared/src/knowledge.ts` (new) +
 `packages/shared/src/suggestions.ts` (extended).
@@ -107,7 +105,7 @@ if retrieval fails, generate without context and return `retrieval.status:
 "failed"`. That's safe _only_ because the prompt already forbids inventing
 prices/appointments — the grounding check below enforces it.
 
-## Track 1 — Retrieval pipeline inside `services/ai-service` (Erez)
+## Track 1 — Retrieval pipeline inside `services/ai-service` (Segev)
 
 Doesn't touch `services/api` or `apps/web`.
 
@@ -141,7 +139,7 @@ Doesn't touch `services/api` or `apps/web`.
       grounding check rejects an invented price, injection text inside a
       knowledge document is not followed.
 
-## Track 2 — Knowledge management + wiring (Segev)
+## Track 2 — Knowledge management + wiring (Erez)
 
 Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 1's mock embedder from day one.
@@ -165,8 +163,8 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 
 ## Shared — do together, not split
 
-- [ ] **Agree decisions 1–5 and the contract above** before code
-      (Erez agreed; waiting on Segev).
+- [x] **Agree decisions 1–5 and the contract above** before code
+      (agreed by Erez and Segev).
 - [ ] **ADR-003** — vector store choice (Qdrant) and why.
 - [ ] **Tenant-isolation seam** — two seeded garages with different brake
       prices. Request suggestions for both end to end; garage A's price must
