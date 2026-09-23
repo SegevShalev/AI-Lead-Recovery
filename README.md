@@ -67,7 +67,9 @@ Seed a demo Hebrew conversation so the dashboard has something to show:
 pnpm --filter @ai-lead-recovery/api run seed
 ```
 
-This prints the seeded business's id and publishes an already-stale message, so `recovery-worker`'s terminal should immediately log that it opened a recovery case. Each run adds one new randomized stalled lead (customer, message, timing) to the same demo business — run it as many times as you want more rows on the dashboard.
+This prints the seeded business's id and publishes an already-stale message, so `recovery-worker`'s terminal should immediately log that it opened a recovery case. Each run adds one new randomized stalled lead (customer, message, timing) to the North garage (מוסך הצפון, the one the dashboard shows) — run it as many times as you want more rows on the dashboard.
+
+It also seeds two garages' business knowledge (prices, hours, policies) from [`fixtures/knowledge/`](fixtures/knowledge/README.md) — idempotent, so re-running doesn't duplicate it. Add `south` (`pnpm --filter @ai-lead-recovery/api run seed south`) to put the stalled lead on the second garage instead. The knowledge shows under the dashboard's **Business knowledge** tab.
 
 Then open the dashboard: **http://localhost:5173** (proxies `/api` and `/dev` to the api service on port 3000).
 
