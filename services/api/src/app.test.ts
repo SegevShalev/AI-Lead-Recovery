@@ -13,6 +13,7 @@ import { createApp } from "./app.js";
 import type { KnowledgeIndexClient } from "./knowledgeIndexClient.js";
 import {
   Business,
+  BusinessKnowledgeDocument,
   Conversation,
   Customer,
   Message,
@@ -97,6 +98,7 @@ describe("api", () => {
       Message.deleteMany({}),
       RecoveryCase.deleteMany({}),
       Suggestion.deleteMany({}),
+      BusinessKnowledgeDocument.deleteMany({}),
     ]);
   });
 
@@ -414,6 +416,82 @@ describe("api", () => {
 
       const updatedCase = await RecoveryCase.findById(recoveryCase._id);
       expect(updatedCase?.suggestionId).toBe(response.body.suggestionId);
+    });
+
+    it("persists retrieval metadata and returns titles of this business's used documents only", async () => {
+      const { business, recoveryCase } = await seedCase();
+      const otherBusiness = await Business.create({
+        name: "Other Garage",
+        vertical: "garage",
+        currency: "ILS",
+        averageTicketValue: 500,
+      });
+      const knowledge = { type: "service", content: "x", version: 2, indexStatus: "indexed" };
+      const brakes = await BusinessKnowledgeDocument.create({
+        ...knowledge,
+        businessId: business._id,
+        title: "בלמים",
+      });
+      const foreign = await BusinessKnowledgeDocument.create({
+        ...knowledge,
+        businessId: otherBusiness._id,
+        title: "מחירון של מוסך אחר",
+      });
+      const source = (documentId: string, chunkId: string) => ({
+        documentId,
+        version: 2,
+        chunkId,
+        score: 0.8,
+      });
+      const sources = [
+        source(String(brakes._id), "c1"),
+        source(String(brakes._id), "c2"), // same document twice → one title
+        source(String(foreign._id), "c3"), // another business's document → never shown
+        source("64b64c1f2f1f2f1f2f1f2f1f", "c4"), // deleted since → dropped
+      ];
+      const suggestionClient = new FakeSuggestionClient();
+      suggestionClient.result = {
+        ok: true,
+        data: { ...okSuggestion, retrieval: { status: "used", sources, contextVersion: "ctx-1" } },
+      };
+      const app = createApp({
+        queue: new FakeQueue(),
+        cache: new FakeCache(),
+        suggestionClient,
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
+      });
+
+      const response = await request(app).post(
+        `/api/recovery-cases/${String(recoveryCase._id)}/suggestion`,
+      );
+
+      expect(response.body.knowledgeDocuments).toEqual([
+        { documentId: String(brakes._id), title: "בלמים" },
+      ]);
+      const stored = await Suggestion.findById(response.body.suggestionId).lean();
+      expect(stored).toMatchObject({
+        retrievalStatus: "used",
+        retrievalContextVersion: "ctx-1",
+        retrievalSources: sources,
+      });
+    });
+
+    it("returns no knowledge documents when retrieval was empty", async () => {
+      const { recoveryCase } = await seedCase();
+      const app = createApp({
+        queue: new FakeQueue(),
+        cache: new FakeCache(),
+        suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
+      });
+
+      const response = await request(app).post(
+        `/api/recovery-cases/${String(recoveryCase._id)}/suggestion`,
+      );
+
+      expect(response.body.knowledgeDocuments).toEqual([]);
+      const stored = await Suggestion.findById(response.body.suggestionId).lean();
+      expect(stored).toMatchObject({ retrievalStatus: "empty", retrievalContextVersion: "none" });
     });
 
     it("sends only the last outbound message onward, capped at 10, as context", async () => {
