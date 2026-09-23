@@ -1,0 +1,113 @@
+{
+  "questions": [
+    {
+      "id": "north-brakes-direct",
+      "garage": "north",
+      "question": "כמה עולה להחליף רפידות בלמים?",
+      "expectedDocumentTitles": ["החלפת רפידות בלמים"]
+    },
+    {
+      "id": "north-brakes-paraphrase",
+      "garage": "north",
+      "question": "הרכב חורק כל פעם שאני לוחץ על הברקס, כמה יעלה לתקן?",
+      "expectedDocumentTitles": ["החלפת רפידות בלמים"]
+    },
+    {
+      "id": "north-oil",
+      "garage": "north",
+      "question": "מה המחיר של החלפת שמן?",
+      "expectedDocumentTitles": ["החלפת שמן ומסנן"]
+    },
+    {
+      "id": "north-service-10k",
+      "garage": "north",
+      "question": "הגעתי ל-10 אלף קילומטר, כמה עולה טיפול?",
+      "expectedDocumentTitles": ["טיפול תקופתי"]
+    },
+    {
+      "id": "north-ac",
+      "garage": "north",
+      "question": "המזגן לא מקרר, כמה עולה לבדוק?",
+      "expectedDocumentTitles": ["בדיקת מזגן ומילוי גז"]
+    },
+    {
+      "id": "north-friday",
+      "garage": "north",
+      "question": "אתם פתוחים ביום שישי?",
+      "expectedDocumentTitles": ["שעות פתיחה"]
+    },
+    {
+      "id": "north-walk-in",
+      "garage": "north",
+      "question": "אפשר להגיע היום בלי לקבוע תור?",
+      "expectedDocumentTitles": ["קביעת תורים"]
+    },
+    {
+      "id": "north-warranty",
+      "garage": "north",
+      "question": "יש אחריות על התיקון?",
+      "expectedDocumentTitles": ["אחריות"]
+    },
+    {
+      "id": "north-installments",
+      "garage": "north",
+      "question": "אפשר לשלם בתשלומים?",
+      "expectedDocumentTitles": ["אמצעי תשלום"]
+    },
+    {
+      "id": "north-puncture-other-garage",
+      "garage": "north",
+      "question": "אתם מתקנים פנצ'רים?",
+      "expectedDocumentTitles": [],
+      "note": "Only the south garage has a puncture document. Returning it here would be a tenant leak."
+    },
+    {
+      "id": "north-off-topic",
+      "garage": "north",
+      "question": "אתם מוכרים פיצה?",
+      "expectedDocumentTitles": []
+    },
+    {
+      "id": "south-brakes-direct",
+      "garage": "south",
+      "question": "כמה עולים בלמים אצלכם?",
+      "expectedDocumentTitles": ["החלפת רפידות בלמים"]
+    },
+    {
+      "id": "south-friday",
+      "garage": "south",
+      "question": "עד מתי אתם פתוחים ביום שישי?",
+      "expectedDocumentTitles": ["שעות פתיחה"]
+    },
+    {
+      "id": "south-puncture",
+      "garage": "south",
+      "question": "יש לי פנצ'ר בגלגל, כמה זה עולה?",
+      "expectedDocumentTitles": ["תיקון פנצ'רים"]
+    },
+    {
+      "id": "south-test-prep",
+      "garage": "south",
+      "question": "כמה עולה הכנה לטסט?",
+      "expectedDocumentTitles": ["הכנה לטסט"]
+    },
+    {
+      "id": "south-warranty",
+      "garage": "south",
+      "question": "כמה זמן אחריות יש על חלקים?",
+      "expectedDocumentTitles": ["אחריות"]
+    },
+    {
+      "id": "south-walk-in",
+      "garage": "south",
+      "question": "אפשר לקפוץ אליכם מחר בבוקר בלי תור?",
+      "expectedDocumentTitles": ["קביעת תורים"]
+    },
+    {
+      "id": "south-off-topic",
+      "garage": "south",
+      "question": "יש לכם חניה לרכבים לטווח ארוך?",
+      "expectedDocumentTitles": []
+    }
+  ]
+}
