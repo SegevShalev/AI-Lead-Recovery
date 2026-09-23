@@ -16,8 +16,8 @@ to end on 2026-09-22, so Phase 4 starts from a known-good failure path.
 
 Current state: the contract below is in `packages/shared` and the AI service
 already returns `retrieval: { status: "empty", ... }` on every suggestion, so
-both tracks build against real types from day one. No
-`BusinessKnowledgeDocument` model in `services/api` yet, and
+both tracks build against real types from day one. The
+`BusinessKnowledgeDocument` model exists in `services/api` (no routes yet);
 `services/ai-service` has no storage at all yet — retrieval needs one.
 
 ## Decisions — agreed by Erez and Segev
@@ -82,6 +82,20 @@ export const indexDocumentRequestSchema = z.object({
 // DELETE /internal/knowledge/:businessId/:documentId → 204
 ```
 
+**Proposed by Erez — Segev to confirm:**
+
+- **Out-of-order indexing:** if the AI service receives a `version` _older_
+  than the one it already holds for that `documentId`, it ignores it and
+  returns 200 (no-op). Newest version always wins, whatever order the calls
+  arrive in (e.g. a manual reindex racing a fresh edit).
+- **Eval set owner + location:** Erez writes it alongside the seed data (the
+  person who writes the facts writes the questions), at
+  `services/ai-service/eval/questions.json` — each entry: `question`,
+  `businessId` (seed business), `expectedDocumentTitles` (empty array = the
+  correct answer is "nothing").
+- **OpenAI key:** Segev creates one for the real embedder; `EMBEDDING_*`
+  entries land in `.env.example` with that adapter. Mock stays the default.
+
 **Suggestion response** — `suggestionResultSchema` gains:
 
 ```ts
@@ -145,7 +159,7 @@ Doesn't touch `services/api` or `apps/web`.
 Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 1's mock embedder from day one.
 
-- [ ] **`BusinessKnowledgeDocument` model** in `services/api` per
+- [x] **`BusinessKnowledgeDocument` model** in `services/api` per
       [data-model.md](../architecture/data-model.md#businessknowledgedocument)
       (index `{businessId, type, version}`), plus Zod schema in shared.
 - [ ] **CRUD routes** `/api/businesses/:businessId/knowledge` — every write

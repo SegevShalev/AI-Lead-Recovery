@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   emptyRetrieval,
   indexDocumentRequestSchema,
+  knowledgeDocumentInputSchema,
   retrievalInfoSchema,
   suggestionResultSchema,
 } from "./index.js";
@@ -57,5 +58,32 @@ describe("knowledge contracts", () => {
     expect(suggestionResultSchema.safeParse({ ...base, retrieval: emptyRetrieval }).success).toBe(
       true,
     );
+  });
+
+  it("trims and accepts a valid knowledge document input", () => {
+    const result = knowledgeDocumentInputSchema.safeParse({
+      type: "policy",
+      title: "  אחריות  ",
+      content: "אחריות של 6 חודשים על חלקים",
+    });
+    expect(result.success && result.data.title).toBe("אחריות");
+  });
+
+  it("rejects knowledge document input with a blank title or unknown type", () => {
+    const base = { type: "faq", title: "שעות פתיחה", content: "א-ה 8:00-17:00" };
+    expect(knowledgeDocumentInputSchema.safeParse({ ...base, title: "   " }).success).toBe(false);
+    expect(knowledgeDocumentInputSchema.safeParse({ ...base, type: "pizza" }).success).toBe(false);
+  });
+
+  it("ignores server-owned fields sent by the client", () => {
+    const result = knowledgeDocumentInputSchema.safeParse({
+      type: "faq",
+      title: "שעות פתיחה",
+      content: "א-ה 8:00-17:00",
+      version: 99,
+      indexStatus: "indexed",
+    });
+    expect(result.success && result.data).not.toHaveProperty("version");
+    expect(result.success && result.data).not.toHaveProperty("indexStatus");
   });
 });
