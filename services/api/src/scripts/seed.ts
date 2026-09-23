@@ -3,9 +3,15 @@ import { loadEnv } from "@ai-lead-recovery/config";
 import { connectMongo, disconnectMongo } from "@ai-lead-recovery/db";
 import { createQueueFromEnv } from "@ai-lead-recovery/queue";
 import type { ConversationMessageReceivedEvent } from "@ai-lead-recovery/shared";
-import { Business, Conversation, Customer, Message } from "../db/models.js";
+import { Conversation, Customer, Message } from "../db/models.js";
+import {
+  ensureGarageBusiness,
+  loadGaragesFixture,
+  upsertKnowledgeDocuments,
+} from "./seedKnowledge.js";
 
-const DEMO_BUSINESS_NAME = "מוסך הצפון";
+/** The dashboard shows the first business, so conversations go here unless another key is passed. */
+const DEFAULT_GARAGE_KEY = "north";
 
 const CUSTOMER_NAMES = [
   "דני כהן",
@@ -51,10 +57,14 @@ function randomPastOccurredAt(): Date {
 }
 
 /**
- * Seeds a stalled Hebrew WhatsApp conversation against the demo business
+ * Seeds every garage in fixtures/knowledge/garages.json with its business
+ * knowledge (idempotent, docs/development/phase-4-checklist.md Track 2), then
+ * a stalled Hebrew WhatsApp conversation against one garage
  * (docs/development/roadmap.md Phase 1 exit criterion), with a random
- * customer and message each run. Run with the api and recovery-worker dev
- * servers already up so the published event has a consumer.
+ * customer and message each run. Pick the garage with its key, e.g.
+ * `pnpm --filter @ai-lead-recovery/api seed south` (default: north). Run
+ * with the api and recovery-worker dev servers already up so the published
+ * event has a consumer.
  *
  * Note: the case's estimated value always comes from the business's
  * averageTicketValue (that's how the "unanswered" rule computes it, see
@@ -63,30 +73,38 @@ function randomPastOccurredAt(): Date {
  * would be misleading rather than useful test data.
  */
 async function seed() {
+  const { garages } = loadGaragesFixture();
+  const targetKey = process.argv[2] ?? DEFAULT_GARAGE_KEY;
+  const target = garages.find((garage) => garage.key === targetKey);
+  if (!target) {
+    throw new Error(
+      `Unknown garage "${targetKey}". Known: ${garages.map((g) => g.key).join(", ")}`,
+    );
+  }
+
   const env = loadEnv();
   await connectMongo(env.MONGODB_URI);
   const queue = createQueueFromEnv(env, "conversation-events");
 
-  let business = await Business.findOne({ name: DEMO_BUSINESS_NAME });
-  if (!business) {
-    business = await Business.create({
-      name: DEMO_BUSINESS_NAME,
-      vertical: "garage",
-      currency: "ILS",
-      averageTicketValue: 500 + Math.floor(Math.random() * 20) * 50, // 500-1450, in steps of 50
-      settingsVersion: 1,
-    });
+  for (const garage of garages) {
+    const garageBusinessId = await ensureGarageBusiness(garage);
+    const knowledge = await upsertKnowledgeDocuments(garageBusinessId, garage.documents);
+    console.log(
+      `Knowledge for ${garage.key} (${garage.name}): ${knowledge.created} created, ${knowledge.updated} updated, ${knowledge.unchanged} unchanged.`,
+    );
   }
 
+  const businessId = await ensureGarageBusiness(target);
+
   const customer = await Customer.create({
-    businessId: business._id,
+    businessId,
     displayName: pickRandom(CUSTOMER_NAMES),
     phone: randomPhone(),
   });
 
   const occurredAt = randomPastOccurredAt();
   const conversation = await Conversation.create({
-    businessId: business._id,
+    businessId,
     customerId: customer._id,
     channel: "whatsapp",
     status: "open",
@@ -105,14 +123,14 @@ async function seed() {
     eventVersion: 1,
     eventId: randomUUID(),
     occurredAt: occurredAt.toISOString(),
-    tenantId: String(business._id),
+    tenantId: String(businessId),
     conversationId: String(conversation._id),
     messageId: String(message._id),
   };
   await queue.publish(event);
 
   console.log(
-    `Seeded business ${business._id} (${business.name}) with a stalled conversation from ${customer.displayName}.`,
+    `Seeded business ${businessId} (${target.name}) with a stalled conversation from ${customer.displayName}.`,
   );
 
   await queue.close();
