@@ -1,6 +1,8 @@
 import { mongoose } from "@ai-lead-recovery/db";
 import type {
   ConversationStatus,
+  KnowledgeDocumentType,
+  KnowledgeIndexStatus,
   MessageDirection,
   RecoveryCaseStatus,
   RecoveryCaseType,
@@ -180,3 +182,44 @@ const suggestionSchema = new Schema<SuggestionDoc>(
 suggestionSchema.index({ recoveryCaseId: 1, createdAt: -1 });
 
 export const Suggestion = model<SuggestionDoc>("Suggestion", suggestionSchema);
+
+/**
+ * RAG source of truth, owned by the API
+ * (docs/architecture/data-model.md#businessknowledgedocument). The AI service
+ * keeps a derived chunk index built from what the API sends it and never reads
+ * this collection. `version` bumps on every write so the index can tell stale
+ * updates apart; `indexStatus` is "pending" when the AI service couldn't be
+ * reached on save (docs/development/phase-4-checklist.md, Track 2).
+ */
+interface BusinessKnowledgeDocumentDoc {
+  businessId: mongoose.Types.ObjectId;
+  type: KnowledgeDocumentType;
+  title: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  version: number;
+  indexStatus: KnowledgeIndexStatus;
+}
+
+const businessKnowledgeDocumentSchema = new Schema<BusinessKnowledgeDocumentDoc>(
+  {
+    businessId: { type: Schema.Types.ObjectId, ref: "Business", required: true },
+    type: {
+      type: String,
+      enum: ["service", "policy", "faq", "style", "example", "other"],
+      required: true,
+    },
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    metadata: { type: Schema.Types.Mixed },
+    version: { type: Number, required: true, min: 1, default: 1 },
+    indexStatus: { type: String, enum: ["indexed", "pending"], required: true, default: "pending" },
+  },
+  { timestamps: true },
+);
+businessKnowledgeDocumentSchema.index({ businessId: 1, type: 1, version: 1 });
+
+export const BusinessKnowledgeDocument = model<BusinessKnowledgeDocumentDoc>(
+  "BusinessKnowledgeDocument",
+  businessKnowledgeDocumentSchema,
+);
