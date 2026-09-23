@@ -1,3 +1,4 @@
+import { emptyRetrieval } from "@ai-lead-recovery/shared";
 import type {
   Logger,
   SuggestionErrorCode,
@@ -162,6 +163,8 @@ export class SuggestionGenerator {
       model: result.model,
       promptVersion: PROMPT_VERSION,
       generatedAt: new Date().toISOString(),
+      // Replaced by real retrieval in Phase 4 Track 1.
+      retrieval: emptyRetrieval,
     };
   }
 }

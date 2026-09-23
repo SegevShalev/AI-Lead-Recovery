@@ -11,13 +11,14 @@ putting those facts into the prompt manually each time.
 (~20 min, local only) — it demonstrates why the `businessId` filter and the
 score threshold below matter, on real embeddings.
 
-**Prerequisite:** Phase 3's shared degraded-mode seam is still unchecked. Do it
-before (or at the very start of) Phase 4 — Phase 4 changes the same
-`SuggestionGenerator` path, so a broken failure path is easier to find now.
+**Prerequisite (done):** Phase 3's shared degraded-mode seam was verified end
+to end on 2026-09-22, so Phase 4 starts from a known-good failure path.
 
-Current state: clean slate. No `BusinessKnowledgeDocument` model in
-`services/api`, and `services/ai-service` has no storage at all yet —
-retrieval needs one.
+Current state: the contract below is in `packages/shared` and the AI service
+already returns `retrieval: { status: "empty", ... }` on every suggestion, so
+both tracks build against real types from day one. No
+`BusinessKnowledgeDocument` model in `services/api` yet, and
+`services/ai-service` has no storage at all yet — retrieval needs one.
 
 ## Decisions — agreed by Erez and Segev
 
@@ -46,7 +47,7 @@ retrieval needs one.
      mandatory filter on every search. Cost/AWS: free locally; in AWS it's
      either another ECS task with an EFS volume or Qdrant Cloud — decide in
      Phase 6, the `VectorStore` interface keeps OpenSearch/pgvector swappable.
-     Record this in an ADR (ADR-003).
+     Recorded in [ADR-003](../decisions/ADR-003-qdrant-vector-store.md).
 4. **Embedding provider: OpenAI `text-embedding-3-small`** (1536 dims,
    handles Hebrew, cheap — cents for our whole dataset). New env vars
    `EMBEDDING_PROVIDER` / `EMBEDDING_API_KEY`, separate from the Anthropic
@@ -165,7 +166,10 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 
 - [x] **Agree decisions 1–5 and the contract above** before code
       (agreed by Erez and Segev).
-- [ ] **ADR-003** — vector store choice (Qdrant) and why.
+- [x] **Contract code** — `packages/shared/src/knowledge.ts` + required
+      `retrieval` on `suggestionResultSchema`; AI service returns
+      `emptyRetrieval` until Track 1's retriever replaces it.
+- [x] **ADR-003** — [vector store choice (Qdrant) and why](../decisions/ADR-003-qdrant-vector-store.md).
 - [ ] **Tenant-isolation seam** — two seeded garages with different brake
       prices. Request suggestions for both end to end; garage A's price must
       never appear in garage B's suggestion or `sources`.
@@ -178,14 +182,16 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
       chunk, to check we return nothing rather than noise). Checked into the
       repo so every chunking/threshold/model/prompt change is measured on the
       same set, not eyeballed on two examples.
-- [ ] **Three-way comparison (exit evidence)** — run the eval set through: 1. **no knowledge** — today's Phase 3 behaviour; 2. **all knowledge** — every chunk of the business pasted into the
-      prompt, no retrieval (a garage has tens of chunks, so this is a real
-      option, not a strawman); 3. **RAG** — retrieval as built above.
-      Measure: retrieval hit rate (right chunk in top-k, for 3), correct facts
-      in the message, invented facts in the message, prompt tokens per
-      request (cost). Per AGENTS.md, don't claim RAG helps until this shows
-      it. If "all knowledge" wins at our data size, that's a legitimate result
-      — keep it and record why. Results go in the PR.
+- [ ] **Three-way comparison (exit evidence)** — run the eval set through
+      (a) **no knowledge** — today's Phase 3 behaviour; (b) **all knowledge**
+      — every chunk of the business pasted into the prompt, no retrieval (a
+      garage has tens of chunks, so this is a real option, not a strawman);
+      (c) **RAG** — retrieval as built above. Measure: retrieval hit rate
+      (right chunk in top-k, for c), correct facts in the message, invented
+      facts in the message, prompt tokens per request (cost). Per AGENTS.md,
+      don't claim RAG helps until this shows it. If "all knowledge" wins at
+      our data size, that's a legitimate result — keep it and record why.
+      Results go in the PR.
 - [ ] **Improve against the eval, one change at a time** — levers in rough
       order of cost: chunking, query construction (last message vs whole
       window), k + score threshold, embedding model, hybrid lexical search,

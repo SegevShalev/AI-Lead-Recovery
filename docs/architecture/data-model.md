@@ -42,6 +42,7 @@ Use MongoDB with Mongoose initially.
 - `occurredAt`
 - `externalMessageId`
 - `metadata`
+- `indexStatus` = indexed | pending — `pending` when the AI service could not be reached on save; a reindex action retries it (the edit is never lost)
 
 ## RecoveryCase
 
@@ -68,6 +69,7 @@ RAG source owned by the business domain/API:
 - `title`
 - `content`
 - `metadata`
+- `indexStatus` = indexed | pending — `pending` when the AI service could not be reached on save; a reindex action retries it (the edit is never lost)
 - `version`
 - `createdAt`
 - `updatedAt`
@@ -85,6 +87,7 @@ Vector/index-specific representation must remain behind the AI/retrieval abstrac
 - `model`
 - `promptVersion`
 - `retrievalContextVersion` (optional)
+- `retrievalSources` (optional) — `{documentId, version, chunkId, score}[]` from the AI service's `retrieval` field, so the dashboard can show which knowledge a suggestion used
 - `createdAt`
 
 Avoid storing chain-of-thought.
