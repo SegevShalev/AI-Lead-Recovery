@@ -62,6 +62,7 @@ const okSuggestion: SuggestionResponse = {
   reason: "quote sent, no reply",
   model: "mock",
   promptVersion: "hebrew-followup-v1",
+  retrieval: { status: "empty", sources: [], contextVersion: "none" },
   generatedAt: new Date().toISOString(),
 };
 

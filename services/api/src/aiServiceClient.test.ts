@@ -28,6 +28,7 @@ describe("createHttpSuggestionClient", () => {
       reason: "quote sent, no reply",
       model: "mock",
       promptVersion: "hebrew-followup-v1",
+      retrieval: { status: "empty", sources: [], contextVersion: "none" },
       generatedAt: new Date().toISOString(),
     };
     const client = createHttpSuggestionClient("http://ai-service.local", async () =>

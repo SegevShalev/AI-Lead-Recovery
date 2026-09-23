@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { messageDirectionSchema, recoveryCaseTypeSchema } from "./domain.js";
+import { retrievalInfoSchema } from "./knowledge.js";
 
 /**
  * Contract between services/api and services/ai-service's
@@ -43,6 +44,7 @@ export const suggestionResultSchema = z.object({
   model: z.string(),
   promptVersion: z.string(),
   generatedAt: z.string().datetime(),
+  retrieval: retrievalInfoSchema,
 });
 export type SuggestionResult = z.infer<typeof suggestionResultSchema>;
 
