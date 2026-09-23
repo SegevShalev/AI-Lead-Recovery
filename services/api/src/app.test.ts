@@ -10,6 +10,7 @@ import {
 } from "@ai-lead-recovery/shared";
 import type { SuggestionClient, SuggestionClientResult } from "./aiServiceClient.js";
 import { createApp } from "./app.js";
+import type { KnowledgeIndexClient } from "./knowledgeIndexClient.js";
 import {
   Business,
   Conversation,
@@ -67,6 +68,12 @@ const okSuggestion: SuggestionResponse = {
 };
 
 /** Defaults to a successful mock result; tests that care override `result`. */
+/** These tests never touch knowledge routes (see routes/knowledge.test.ts). */
+const unusedKnowledgeIndexClient: KnowledgeIndexClient = {
+  indexDocument: async () => ({ ok: false, errorCode: "unreachable" }),
+  deleteDocument: async () => ({ ok: false, errorCode: "unreachable" }),
+};
+
 class FakeSuggestionClient implements SuggestionClient {
   requests: SuggestionRequest[] = [];
   result: SuggestionClientResult = { ok: true, data: okSuggestion };
@@ -104,6 +111,7 @@ describe("api", () => {
           queue: new FakeQueue(),
           cache: new FakeCache(),
           suggestionClient: new FakeSuggestionClient(),
+          knowledgeIndexClient: unusedKnowledgeIndexClient,
         }),
       ).get("/health");
       expect(response.status).toBe(200);
@@ -125,6 +133,7 @@ describe("api", () => {
         queue,
         cache: new FakeCache(),
         suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const response = await request(app)
@@ -150,6 +159,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FakeCache(),
         suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
       const response = await request(app).post("/dev/webhooks/whatsapp").send({
         businessId: "64b64c1f2f1f2f1f2f1f2f1f",
@@ -204,6 +214,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FakeCache(),
         suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const dashboard = await request(app)
@@ -235,6 +246,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache,
         suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const first = await request(app)
@@ -288,6 +300,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache,
         suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const first = await request(app).get("/api/dashboard").query({ businessId });
@@ -318,6 +331,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FailingCache(),
         suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const response = await request(app)
@@ -368,6 +382,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FakeCache(),
         suggestionClient: new FakeSuggestionClient(),
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
       const response = await request(app).post(
         "/api/recovery-cases/64b64c1f2f1f2f1f2f1f2f1f/suggestion",
@@ -382,6 +397,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FakeCache(),
         suggestionClient,
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const response = await request(app).post(
@@ -434,6 +450,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FakeCache(),
         suggestionClient,
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       await request(app).post(`/api/recovery-cases/${String(recoveryCase._id)}/suggestion`);
@@ -456,6 +473,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FakeCache(),
         suggestionClient,
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const response = await request(app).post(
@@ -477,6 +495,7 @@ describe("api", () => {
         queue: new FakeQueue(),
         cache: new FakeCache(),
         suggestionClient,
+        knowledgeIndexClient: unusedKnowledgeIndexClient,
       });
 
       const response = await request(app).post(
