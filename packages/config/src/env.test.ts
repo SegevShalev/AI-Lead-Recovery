@@ -35,6 +35,25 @@ describe("loadEnv", () => {
     );
   });
 
+  it("defaults to the mock embedder, which needs no key", () => {
+    const env = loadEnv({
+      MONGODB_URI: "mongodb://localhost:27017/ai-lead-recovery",
+      REDIS_URL: "redis://localhost:6379",
+    });
+    expect(env.EMBEDDING_PROVIDER).toBe("mock");
+  });
+
+  it("requires EMBEDDING_API_KEY when EMBEDDING_PROVIDER=openai", () => {
+    const base = {
+      MONGODB_URI: "mongodb://localhost:27017/ai-lead-recovery",
+      REDIS_URL: "redis://localhost:6379",
+      EMBEDDING_PROVIDER: "openai",
+    };
+    // An empty value (as copied from .env.example) counts as missing.
+    expect(() => loadEnv({ ...base, EMBEDDING_API_KEY: "" })).toThrow(/EMBEDDING_API_KEY/);
+    expect(loadEnv({ ...base, EMBEDDING_API_KEY: "sk-test" }).EMBEDDING_PROVIDER).toBe("openai");
+  });
+
   it("throws when required values are missing", () => {
     expect(() => loadEnv({})).toThrow(/Invalid environment configuration/);
   });

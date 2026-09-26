@@ -63,5 +63,7 @@ Expected values will eventually include:
 - `AI_API_KEY`
 - `AI_SERVICE_URL` (services/api's base URL for calling services/ai-service, default `http://localhost:3001`)
 - `QDRANT_URL` (services/ai-service's vector store, default `http://localhost:6333`)
+- `EMBEDDING_PROVIDER=mock|openai` (default `mock`: deterministic, no key, lexical only) and
+  `EMBEDDING_API_KEY` (required for `openai`; separate from `AI_API_KEY`)
 
 Never put real credentials in source control.
