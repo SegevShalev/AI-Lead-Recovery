@@ -45,7 +45,7 @@ AI roadmap:
 ```bash
 cp .env.example .env       # defaults already match docker-compose.yml
 pnpm install
-docker compose up -d --wait  # MongoDB + Redis — waits until both are actually ready
+docker compose up -d --wait  # MongoDB + Redis + Qdrant — waits until they're actually ready
 pnpm dev                   # runs api, recovery-worker, ai-service, and web in parallel, in one terminal
 # seeing "ECONNREFUSED" on /api/businesses in this terminal right after startup? that's expected, see below
 ```

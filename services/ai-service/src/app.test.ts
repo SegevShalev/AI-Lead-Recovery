@@ -2,6 +2,9 @@ import { createLogger } from "@ai-lead-recovery/shared";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
+import { InMemoryVectorStore } from "./knowledge/inMemoryVectorStore.js";
+import { KnowledgeIndexer } from "./knowledge/knowledgeIndexer.js";
+import { MockEmbedder } from "./knowledge/mockEmbedder.js";
 import { MockSuggestionProvider } from "./providers/mock.js";
 import { SuggestionGenerator } from "./suggestionGenerator.js";
 
@@ -21,7 +24,8 @@ const validRequestBody = {
 function buildApp(
   generator = new SuggestionGenerator(new MockSuggestionProvider(), undefined, silentLogger),
 ) {
-  return createApp(generator);
+  const indexer = new KnowledgeIndexer(new MockEmbedder(), new InMemoryVectorStore(), silentLogger);
+  return createApp(generator, indexer, silentLogger);
 }
 
 describe("GET /health", () => {
