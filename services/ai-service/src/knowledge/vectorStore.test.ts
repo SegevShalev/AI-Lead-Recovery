@@ -4,6 +4,7 @@ import { InMemoryVectorStore } from "./inMemoryVectorStore.js";
 import { QdrantVectorStore } from "./qdrantVectorStore.js";
 import {
   chunkPointId,
+  CollectionMismatchError,
   type DocumentRef,
   type StoredChunk,
   type VectorStore,
@@ -161,9 +162,9 @@ describe.skipIf(!qdrantReachable)("QdrantVectorStore (live, needs docker compose
   it("fails loudly when the collection was made for different dimensions", async () => {
     const collection = `test_${randomUUID()}`;
     await newQdrantStore(4, collection).ensureCollection();
-    await expect(newQdrantStore(5, collection).ensureCollection()).rejects.toThrow(
-      /embedder changed/,
-    );
+    const mismatch = newQdrantStore(5, collection).ensureCollection();
+    await expect(mismatch).rejects.toBeInstanceOf(CollectionMismatchError);
+    await expect(mismatch).rejects.toThrow(/embedder changed: delete the collection/);
   });
 });
 

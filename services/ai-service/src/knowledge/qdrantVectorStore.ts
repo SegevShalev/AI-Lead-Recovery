@@ -4,6 +4,7 @@ import {
   assertBusinessId,
   type ChunkHit,
   chunkPointId,
+  CollectionMismatchError,
   type DocumentRef,
   type ReplaceResult,
   type SearchOptions,
@@ -13,14 +14,12 @@ import {
 } from "./vectorStore.js";
 
 /**
- * One collection per embedding model: vectors from different models live in
- * different spaces (and sizes), so they must never be compared. Switching
- * EMBEDDING_PROVIDER just points at another collection, which then needs a
- * reindex - it's a derived index, so that's always possible.
+ * The AI service's one knowledge collection (phase-4-checklist.md decision 1).
+ * It is sized for one embedder at a time: switching EMBEDDING_PROVIDER means
+ * deleting it and reindexing (see services/ai-service/README.md). That's
+ * always safe - it's a derived index.
  */
-export function knowledgeCollectionName(embeddingModel: string): string {
-  return `knowledge_chunks__${embeddingModel.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
-}
+export const KNOWLEDGE_COLLECTION = "knowledge_chunks";
 
 // Qdrant is outside this process: validate what comes back like any other boundary.
 const payloadSchema = z.object({
@@ -113,9 +112,10 @@ export class QdrantVectorStore implements VectorStore {
       }
       const { size, distance } = info.data.result.config.params.vectors;
       if (size !== dimensions || distance !== "Cosine") {
-        throw new VectorStoreError(
+        throw new CollectionMismatchError(
           `collection ${collection} has size=${size} distance=${distance}, expected ` +
-            `size=${dimensions} distance=Cosine. The embedder changed: delete the collection and reindex.`,
+            `size=${dimensions} distance=Cosine. The embedder changed: delete the collection ` +
+            `(curl -X DELETE ${this.baseUrl}${this.collectionPath}), restart ai-service and reindex.`,
         );
       }
     }

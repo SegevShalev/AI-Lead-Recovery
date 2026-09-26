@@ -71,6 +71,17 @@ export class VectorStoreError extends Error {
   }
 }
 
+/**
+ * The collection exists but was made for a different embedder (vector size).
+ * Not transient: someone has to delete the collection and reindex.
+ */
+export class CollectionMismatchError extends VectorStoreError {
+  constructor(message: string) {
+    super(message);
+    this.name = "CollectionMismatchError";
+  }
+}
+
 export function assertBusinessId(businessId: string): void {
   if (businessId.trim() === "") throw new VectorStoreError("businessId is required");
 }

@@ -75,6 +75,10 @@ Then open the dashboard: **http://localhost:5173** (proxies `/api` and `/dev` to
 
 To reset local data: `docker compose down -v && docker compose up -d`.
 
+**Switching `EMBEDDING_PROVIDER` between `mock` and `openai`?** The Qdrant
+knowledge collection only fits one embedder at a time, so delete it and reindex.
+See [services/ai-service/README.md](services/ai-service/README.md#switching-the-embedding-provider).
+
 ### Viewing it from another device (e.g. your phone) — optional
 
 `pnpm dev` binds the web dev server to localhost only. To reach it from a phone or another computer on the same Wi-Fi, run this instead of (or alongside) the web part of `pnpm dev`:

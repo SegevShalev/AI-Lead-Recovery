@@ -19,11 +19,40 @@ The service should remain provider-agnostic. A local deterministic/mock provider
 `src/knowledge/`: `chunker` → `Embedder` (`MockEmbedder` | `OpenAIEmbedder`)
 → `VectorStore` (`QdrantVectorStore` | `InMemoryVectorStore` for tests).
 
-- One Qdrant collection per embedding model: `knowledge_chunks__<model>`,
-  e.g. `knowledge_chunks__mock-hash-256`. Switching `EMBEDDING_PROVIDER`
-  uses another collection, so reindex after switching.
+- One Qdrant collection, `knowledge_chunks`, sized for the current embedder
+  (mock: 256 dims, OpenAI: 1536).
 - The service starts even when Qdrant is down; it keeps retrying collection
   setup in the background and logs `knowledge collection ready` once done.
+
+### Switching the embedding provider
+
+> ⚠️ Applies whenever `EMBEDDING_PROVIDER` changes between `mock` and `openai`.
+
+The collection can hold only one embedder's vectors. After changing
+`EMBEDDING_PROVIDER`, the service logs this error and keeps retrying:
+
+```
+knowledge collection was made for another embedder
+```
+
+Until you fix it, indexing answers 503 (the API saves documents as
+"pending") and suggestions still work, just without knowledge. To fix it:
+
+```bash
+curl -X DELETE http://localhost:6333/collections/knowledge_chunks
+```
+
+Then restart ai-service, or wait up to 30 s for its next retry, and reindex
+the documents from the dashboard. It's always safe to delete: the collection
+is a derived index, and the API's documents are the source of truth.
+
+Two places this bites:
+
+- **Degrade check with a bad `EMBEDDING_API_KEY`:** delete the collection
+  first. Otherwise retrieval fails because of the size mismatch, not the bad
+  key, and the check passes for the wrong reason.
+- **Automated tests are not affected.** They use their own temporary
+  collections or the in-memory store.
 - Browse the stored chunks at <http://localhost:6333/dashboard> → the
   collection → **Visualize** (PCA, color by `businessId`).
 - Logs carry ids, counts, scores and latency only — never document or customer text.

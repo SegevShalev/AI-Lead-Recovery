@@ -51,9 +51,28 @@ before it.
 - **`EMBEDDING_*` env vars move to Stage 3**, where they are first used, per
   Erez's note that they "land with that adapter".
 
+> ### ⚠️ One collection, one embedder at a time
+>
+> Decided 2026-09-27 (option A). We keep the agreed single `knowledge_chunks`
+> collection (checklist decision 1). The mock embedder makes 256-dim vectors
+> and OpenAI makes 1536-dim vectors, so the collection fits only one of them.
+> **Every time `EMBEDDING_PROVIDER` changes, delete the collection and reindex:**
+>
+> ```bash
+> curl -X DELETE http://localhost:6333/collections/knowledge_chunks
+> ```
+>
+> Until then, ai-service logs the error "knowledge collection was made for
+> another embedder", indexing answers 503, and suggestions keep working
+> without knowledge. Automated tests are never affected. Where it matters:
+> **Stage 7** (first real OpenAI run), **Stage 9**, and the **degrade seam**
+> (delete first, or the check passes for the wrong reason). Full steps are in
+> [services/ai-service/README.md](../../services/ai-service/README.md#switching-the-embedding-provider).
+
 ## Rules for every stage
 
-- One commit per stage (or a few small ones), pushed when the stage is done.
+- One commit per stage (or a few small ones). **Commit, push and PR
+  changes only after Segev approves each one.**
 - Before each commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`,
   `pnpm format:check` all pass.
 - Two PRs into `dev`, Erez reviews: **PR A after Stage 5**, **PR B after Stage 9**.
@@ -191,12 +210,10 @@ sentences. Do the scores look like the local model's scores from Part 2?
   ```
   `businessId` is a **required argument**, so `search` can't be called without it.
 - `QdrantVectorStore` with plain `fetch` (the same calls as the playground):
-  - **One collection per embedding model** (for example `knowledge_chunks__text-embedding-3-small`),
-    using cosine distance and a payload index on `businessId`, created if missing. Switching
-    between `mock` and `openai` then just uses another collection, with no dimension
-    clash. The index is derived data, so rebuild it by reindexing.
-    _(This proposes a change to the checklist's single `knowledge_chunks` name. The
-    checklist's intent is unchanged, and it's internal to the ai-service.)_
+  - One collection, `knowledge_chunks` (as agreed), with cosine distance and a
+    payload index on `businessId`, created if missing. If it already exists with
+    another vector size, that's a `CollectionMismatchError`, logged at error level
+    with the delete command. See the ⚠️ box at the top.
   - `replaceDocument`: read the stored `version` for this document. If the incoming version is older, skip it.
     Otherwise delete by filter `{businessId, documentId}`, then upsert.
     That's what makes re-indexing idempotent and order-safe.
@@ -294,6 +311,8 @@ The prompt stays at `v1` in this stage on purpose.
 - `pnpm --filter @ai-lead-recovery/ai-service index:fixtures` (moved from
   Stage 5): indexes the same `garages.json` into the real Qdrant through
   `KnowledgeIndexer`, so the dashboard shows real data without Erez's stack.
+  ⚠️ This is the first real switch to `openai`: delete `knowledge_chunks` first
+  (see the box at the top).
 - Change one thing at a time (threshold, `k`, chunk wording), re-run, and record the numbers
   in this file.
 
@@ -337,7 +356,8 @@ The prompt stays at `v1` in this stage on purpose.
   questions in three modes (1. no knowledge, 2. all of the garage's chunks in the
   prompt, 3. RAG) and prints a table with these columns: correct facts, invented facts, and prompt tokens.
 - Needs a real generation key (`AI_PROVIDER=anthropic`). Its cost will be printed before
-  the run.
+  the run. If the running service is on a different embedder than the last
+  index, delete `knowledge_chunks` and reindex first (⚠️ box at the top).
 
 **Done when:** the results table is in the PR. If "all knowledge" wins at our
 size, that's a valid result. Record it and why.
@@ -355,3 +375,6 @@ From the checklist, done together once both sides are in `dev`:
   never shows up in garage B's suggestion or `sources`.
 - **Degrade:** a bad `EMBEDDING_API_KEY` ⇒ the suggestion still comes back with
   `retrieval.status: "failed"`, and the dashboard says no knowledge was used.
+  ⚠️ Delete `knowledge_chunks` before switching to the bad-key `openai` setup.
+  Otherwise retrieval fails because of the vector-size mismatch, not the bad
+  key, and the seam passes for the wrong reason.

@@ -4,7 +4,7 @@ import { createApp } from "./app.js";
 import { ensureCollectionInBackground } from "./knowledge/collectionSetup.js";
 import { createEmbedderFromEnv } from "./knowledge/embedderFactory.js";
 import { KnowledgeIndexer } from "./knowledge/knowledgeIndexer.js";
-import { knowledgeCollectionName, QdrantVectorStore } from "./knowledge/qdrantVectorStore.js";
+import { KNOWLEDGE_COLLECTION, QdrantVectorStore } from "./knowledge/qdrantVectorStore.js";
 import { createProvidersFromEnv } from "./providerFactory.js";
 import { SuggestionGenerator } from "./suggestionGenerator.js";
 
@@ -16,10 +16,9 @@ const { primary, fallback } = createProvidersFromEnv(env);
 const generator = new SuggestionGenerator(primary, fallback, logger);
 
 const embedder = createEmbedderFromEnv(env);
-const collection = knowledgeCollectionName(embedder.model);
 const vectorStore = new QdrantVectorStore({
   url: env.QDRANT_URL,
-  collection,
+  collection: KNOWLEDGE_COLLECTION,
   dimensions: embedder.dimensions,
   embeddingModel: embedder.model,
 });
@@ -30,6 +29,6 @@ void ensureCollectionInBackground(vectorStore, logger);
 const app = createApp(generator, indexer, logger);
 app.listen(port, () => {
   console.log(
-    `[ai-service] listening on port ${port} (env=${env.NODE_ENV}, provider=${env.AI_PROVIDER}, fallback=${env.AI_FALLBACK_PROVIDER ?? "none"}, embedder=${embedder.model}, collection=${collection})`,
+    `[ai-service] listening on port ${port} (env=${env.NODE_ENV}, provider=${env.AI_PROVIDER}, fallback=${env.AI_FALLBACK_PROVIDER ?? "none"}, embedder=${embedder.model}, collection=${KNOWLEDGE_COLLECTION})`,
   );
 });
