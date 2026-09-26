@@ -1,12 +1,15 @@
 import type { SuggestionRequest } from "@ai-lead-recovery/shared";
-import { createLogger } from "@ai-lead-recovery/shared";
+import { createLogger, emptyRetrieval, type RetrievalInfo } from "@ai-lead-recovery/shared";
 import { describe, expect, it } from "vitest";
+import type { Retriever } from "./knowledge/retriever.js";
 import { MockSuggestionProvider } from "./providers/mock.js";
 import type { GenerationInput, SuggestionProvider } from "./providers/types.js";
 import { ProviderCallError } from "./providers/types.js";
 import { SuggestionGenerator } from "./suggestionGenerator.js";
 
 const silentLogger = createLogger("ai-service-test");
+/** For tests about generation itself: the business has no knowledge. */
+const noKnowledge: Retriever = { retrieve: async () => ({ info: emptyRetrieval, chunks: [] }) };
 
 const baseRequest: SuggestionRequest = {
   recoveryCaseId: "case-1",
@@ -49,6 +52,7 @@ describe("SuggestionGenerator", () => {
       new MockSuggestionProvider(),
       undefined,
       silentLogger,
+      noKnowledge,
     );
     const result = await generator.generate(baseRequest);
     expect(result.status).toBe("ok");
@@ -66,7 +70,7 @@ describe("SuggestionGenerator", () => {
       () => ({}),
       () => null,
     ]);
-    const generator = new SuggestionGenerator(provider, undefined, silentLogger);
+    const generator = new SuggestionGenerator(provider, undefined, silentLogger, noKnowledge);
 
     const result = await generator.generate(baseRequest);
 
@@ -80,7 +84,7 @@ describe("SuggestionGenerator", () => {
       throwing(new ProviderCallError("boom", "provider_error", true)),
       throwing(new ProviderCallError("boom", "provider_error", true)),
     ]);
-    const generator = new SuggestionGenerator(provider, undefined, silentLogger);
+    const generator = new SuggestionGenerator(provider, undefined, silentLogger, noKnowledge);
 
     const result = await generator.generate(baseRequest);
 
@@ -95,7 +99,7 @@ describe("SuggestionGenerator", () => {
       throwing(new ProviderCallError("boom", "provider_error", true)),
     ]);
     const fallback = new MockSuggestionProvider({ name: "fallback-mock" });
-    const generator = new SuggestionGenerator(primary, fallback, silentLogger);
+    const generator = new SuggestionGenerator(primary, fallback, silentLogger, noKnowledge);
 
     const result = await generator.generate(baseRequest);
 
@@ -115,7 +119,7 @@ describe("SuggestionGenerator", () => {
     const fallback = new ScriptedProvider("fallback", [
       throwing(new ProviderCallError("auth failed", "provider_unavailable", false)),
     ]);
-    const generator = new SuggestionGenerator(primary, fallback, silentLogger);
+    const generator = new SuggestionGenerator(primary, fallback, silentLogger, noKnowledge);
 
     const result = await generator.generate(baseRequest);
 
@@ -129,11 +133,72 @@ describe("SuggestionGenerator", () => {
       throwing(new ProviderCallError("bad auth", "provider_unavailable", false)),
     ]);
     const fallback = new MockSuggestionProvider({ name: "fallback-mock" });
-    const generator = new SuggestionGenerator(primary, fallback, silentLogger);
+    const generator = new SuggestionGenerator(primary, fallback, silentLogger, noKnowledge);
 
     const result = await generator.generate(baseRequest);
 
     expect(primary.callCount).toBe(1);
     expect(result.status).toBe("ok");
+  });
+
+  describe("retrieval (Stage 6: reported, not yet used by the prompt)", () => {
+    const usedRetrieval: RetrievalInfo = {
+      status: "used",
+      sources: [{ documentId: "doc-brakes", version: 2, chunkId: "chunk-1", score: 0.61 }],
+      contextVersion: "0123456789abcdef",
+    };
+    function countingRetriever(info: RetrievalInfo) {
+      const retriever = {
+        calls: 0,
+        retrieve: async () => {
+          retriever.calls++;
+          return { info, chunks: [] };
+        },
+      };
+      return retriever;
+    }
+
+    it("returns the retrieval info with the suggestion", async () => {
+      const retriever = countingRetriever(usedRetrieval);
+      const generator = new SuggestionGenerator(
+        new MockSuggestionProvider(),
+        undefined,
+        silentLogger,
+        retriever,
+      );
+
+      const result = await generator.generate(baseRequest);
+
+      expect(result).toMatchObject({ status: "ok", retrieval: usedRetrieval });
+    });
+
+    it("still returns an ok suggestion when retrieval failed (degrade rule)", async () => {
+      const failed: RetrievalInfo = { status: "failed", sources: [], contextVersion: "none" };
+      const generator = new SuggestionGenerator(
+        new MockSuggestionProvider(),
+        undefined,
+        silentLogger,
+        countingRetriever(failed),
+      );
+
+      const result = await generator.generate(baseRequest);
+
+      expect(result).toMatchObject({ status: "ok", retrieval: failed });
+    });
+
+    it("retrieves once per request, not once per retry attempt", async () => {
+      const provider = new ScriptedProvider("primary", [
+        () => ({ message: 42 }),
+        () => ({ message: 42 }),
+        () => ({ message: "היי דנה", reason: "ok" }),
+      ]);
+      const retriever = countingRetriever(usedRetrieval);
+      const generator = new SuggestionGenerator(provider, undefined, silentLogger, retriever);
+
+      await generator.generate(baseRequest);
+
+      expect(provider.callCount).toBe(3);
+      expect(retriever.calls).toBe(1);
+    });
   });
 });

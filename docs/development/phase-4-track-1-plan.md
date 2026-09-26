@@ -10,18 +10,18 @@ Small stages on one branch, `feature/rag-retrieval-pipeline` (from `dev`).
 Every stage ends with a commit that leaves everything green and runnable. If
 I stop after any stage, nothing is broken and nothing is half-wired.
 
-| #   | Stage                          | Needs         | Done when                                                     |
-| --- | ------------------------------ | ------------- | ------------------------------------------------------------- |
-| 0   | Playground ✅                  | —             | I can explain embeddings, cosine, top-k, threshold, isolation |
-| 1   | Qdrant container + config ✅   | —             | dashboard at `localhost:6333/dashboard`, env tests pass       |
-| 2   | Chunker ✅                     | —             | pure function, Hebrew unit tests                              |
-| 3   | Embedder (mock + OpenAI) ✅    | —             | mock is deterministic; OpenAI tested with stubbed `fetch`     |
-| 4   | Vector store ✅                | 1, 3          | isolation + idempotency tests pass (in-memory and Qdrant)     |
-| 5   | Index + delete API ✅          | 2, 3, 4       | Erez's CRUD indexes into real Qdrant                          |
-| 6   | Retriever (reported, not used) | 5             | every suggestion returns real `retrieval` info                |
-| 7   | Retrieval eval + tuning        | 6, Erez's #10 | hit-rate table; `k` and `minScore` chosen from numbers        |
-| 8   | Prompt v2 + grounding check    | 7             | invented prices rejected, injected text not followed          |
-| 9   | Three-way comparison → **PR**  | 8             | no-knowledge vs all-knowledge vs RAG table in the PR          |
+| #   | Stage                         | Needs         | Done when                                                     |
+| --- | ----------------------------- | ------------- | ------------------------------------------------------------- |
+| 0   | Playground ✅                 | —             | I can explain embeddings, cosine, top-k, threshold, isolation |
+| 1   | Qdrant container + config ✅  | —             | dashboard at `localhost:6333/dashboard`, env tests pass       |
+| 2   | Chunker ✅                    | —             | pure function, Hebrew unit tests                              |
+| 3   | Embedder (mock + OpenAI) ✅   | —             | mock is deterministic; OpenAI tested with stubbed `fetch`     |
+| 4   | Vector store ✅               | 1, 3          | isolation + idempotency tests pass (in-memory and Qdrant)     |
+| 5   | Index + delete API ✅         | 2, 3, 4       | Erez's CRUD indexes into real Qdrant                          |
+| 6   | Retriever (reported) ✅       | 5             | every suggestion returns real `retrieval` info                |
+| 7   | Retrieval eval + tuning       | 6, Erez's #10 | hit-rate table; `k` and `minScore` chosen from numbers        |
+| 8   | Prompt v2 + grounding check   | 7             | invented prices rejected, injected text not followed          |
+| 9   | Three-way comparison → **PR** | 8             | no-knowledge vs all-knowledge vs RAG table in the PR          |
 
 ```
 Build the parts          Store them            Use them                 Prove it
@@ -293,6 +293,20 @@ still to do.
 
 The prompt stays at `v1` in this stage on purpose.
 
+**Filled in while building:**
+
+- If the customer hasn't written since our last message (e.g. an unanswered
+  quote), the query uses the latest message of either side. The checklist
+  doesn't cover that case, and our own quote usually names the service. No
+  message text at all ⇒ `"empty"` without calling the embedder.
+- The failure log's `errorCode` says what failed: `embedding_<code>`,
+  `vector_store_unavailable` or `unexpected_error`.
+
+**Status:** ✅ verified by hand on 2026-09-27 against the real Qdrant with the
+mock embedder. For the brakes question, north got only its own document (0.39)
+and south got only its own (0.42). A garage with no knowledge got `"empty"`.
+Logs held ids, scores and latency (5–8 ms) and no text. The prompt stayed v1.
+
 **Commit:** `feat(ai-service): run retrieval on suggestion requests`
 
 ---
@@ -318,6 +332,11 @@ The prompt stays at `v1` in this stage on purpose.
   `KnowledgeIndexer`, so the dashboard shows real data without Erez's stack.
   ⚠️ This is the first real switch to `openai`: delete `knowledge_chunks` first
   (see the box at the top).
+- **First experiment: query with vs without the case `reason`.** The reason is
+  an English system string ("no reply within 60 minutes") with no topic in it.
+  With the mock it lowered the brakes question's score from 0.54 to 0.39. The
+  checklist says to include it, so Stage 6 does; this measures whether that holds
+  with the real embedder.
 - Change one thing at a time (threshold, `k`, chunk wording), re-run, and record the numbers
   in this file.
 

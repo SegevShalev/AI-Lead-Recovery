@@ -4,7 +4,10 @@ Internal service boundary for AI functionality.
 
 Endpoints (contracts in `packages/shared`):
 
-- `POST /internal/suggestions` — generate a Hebrew follow-up suggestion.
+- `POST /internal/suggestions` — generate a Hebrew follow-up suggestion. It
+  first retrieves the business's matching knowledge and reports it in
+  `retrieval` (`used` / `empty` / `failed`). A retrieval failure never blocks
+  the suggestion.
 - `POST /internal/knowledge/index` — chunk → embed → store one knowledge
   document. Same or newer `version` replaces its chunks; an older one is a
   no-op (still 200). 400 invalid body, 422 the provider rejected the
@@ -18,6 +21,9 @@ The service should remain provider-agnostic. A local deterministic/mock provider
 
 `src/knowledge/`: `chunker` → `Embedder` (`MockEmbedder` | `OpenAIEmbedder`)
 → `VectorStore` (`QdrantVectorStore` | `InMemoryVectorStore` for tests).
+`KnowledgeRetriever` builds a query from the case reason and the latest
+inbound messages, embeds it, and searches only that business's chunks
+(`RETRIEVAL_TOP_K`, `RETRIEVAL_MIN_SCORE`).
 
 - One Qdrant collection, `knowledge_chunks`, sized for the current embedder
   (mock: 256 dims, OpenAI: 1536).

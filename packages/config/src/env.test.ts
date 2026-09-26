@@ -54,6 +54,20 @@ describe("loadEnv", () => {
     expect(loadEnv({ ...base, EMBEDDING_API_KEY: "sk-test" }).EMBEDDING_PROVIDER).toBe("openai");
   });
 
+  it("parses retrieval settings from strings and caps top-k at the contract's 5 sources", () => {
+    const base = {
+      MONGODB_URI: "mongodb://localhost:27017/ai-lead-recovery",
+      REDIS_URL: "redis://localhost:6379",
+    };
+    expect(loadEnv(base)).toMatchObject({ RETRIEVAL_TOP_K: 5, RETRIEVAL_MIN_SCORE: 0.2 });
+    expect(loadEnv({ ...base, RETRIEVAL_TOP_K: "3", RETRIEVAL_MIN_SCORE: "0.35" })).toMatchObject({
+      RETRIEVAL_TOP_K: 3,
+      RETRIEVAL_MIN_SCORE: 0.35,
+    });
+    expect(() => loadEnv({ ...base, RETRIEVAL_TOP_K: "6" })).toThrow(/RETRIEVAL_TOP_K/);
+    expect(() => loadEnv({ ...base, RETRIEVAL_MIN_SCORE: "1.5" })).toThrow(/RETRIEVAL_MIN_SCORE/);
+  });
+
   it("throws when required values are missing", () => {
     expect(() => loadEnv({})).toThrow(/Invalid environment configuration/);
   });

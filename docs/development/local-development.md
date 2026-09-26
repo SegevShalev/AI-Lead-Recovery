@@ -67,5 +67,8 @@ Expected values will eventually include:
   `EMBEDDING_API_KEY` (required for `openai`; separate from `AI_API_KEY`). Switching
   providers means deleting the `knowledge_chunks` collection and reindexing. See
   [services/ai-service/README.md](../../services/ai-service/README.md#switching-the-embedding-provider).
+- `RETRIEVAL_TOP_K` (1–5, default 5) and `RETRIEVAL_MIN_SCORE` (default 0.2): how many
+  knowledge chunks a suggestion may use, and the lowest similarity score kept. The defaults are
+  placeholders until the Phase 4 retrieval eval.
 
 Never put real credentials in source control.

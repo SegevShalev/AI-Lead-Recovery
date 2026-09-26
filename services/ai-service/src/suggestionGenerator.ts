@@ -1,10 +1,11 @@
-import { emptyRetrieval } from "@ai-lead-recovery/shared";
 import type {
   Logger,
+  RetrievalInfo,
   SuggestionErrorCode,
   SuggestionRequest,
   SuggestionResponse,
 } from "@ai-lead-recovery/shared";
+import type { Retriever } from "./knowledge/retriever.js";
 import { modelOutputSchema, PROMPT_VERSION } from "./prompts.js";
 import type { GenerationInput, SuggestionProvider } from "./providers/types.js";
 import { ProviderCallError } from "./providers/types.js";
@@ -87,9 +88,16 @@ export class SuggestionGenerator {
     private readonly primary: SuggestionProvider,
     private readonly fallback: SuggestionProvider | undefined,
     private readonly logger: Logger,
+    private readonly retriever: Retriever,
   ) {}
 
   async generate(request: SuggestionRequest): Promise<SuggestionResponse> {
+    // Once per request, before generation, never per retry attempt. It can't
+    // throw: a failure comes back as status "failed" and generation goes on
+    // without knowledge (degrade rule). Stage 6: reported only - the prompt
+    // is still v1 and doesn't see the chunks yet.
+    const retrieval = await this.retriever.retrieve(request);
+
     const input: GenerationInput = {
       caseType: request.caseType,
       reason: request.reason,
@@ -108,7 +116,7 @@ export class SuggestionGenerator {
     );
     if (primaryResult.ok) {
       this.logSuccess(primaryResult, correlationId, false);
-      return this.toResult(primaryResult);
+      return this.toResult(primaryResult, retrieval.info);
     }
 
     if (this.fallback) {
@@ -121,7 +129,7 @@ export class SuggestionGenerator {
       );
       if (fallbackResult.ok) {
         this.logSuccess(fallbackResult, correlationId, true);
-        return this.toResult(fallbackResult);
+        return this.toResult(fallbackResult, retrieval.info);
       }
       this.logger.warn("suggestion degraded after primary and fallback both failed", {
         correlationId,
@@ -154,7 +162,7 @@ export class SuggestionGenerator {
     });
   }
 
-  private toResult(result: AttemptSuccess): SuggestionResponse {
+  private toResult(result: AttemptSuccess, retrieval: RetrievalInfo): SuggestionResponse {
     return {
       status: "ok",
       message: result.message,
@@ -163,8 +171,7 @@ export class SuggestionGenerator {
       model: result.model,
       promptVersion: PROMPT_VERSION,
       generatedAt: new Date().toISOString(),
-      // Replaced by real retrieval in Phase 4 Track 1.
-      retrieval: emptyRetrieval,
+      retrieval,
     };
   }
 }

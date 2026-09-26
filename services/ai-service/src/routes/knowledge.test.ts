@@ -1,4 +1,8 @@
-import { indexDocumentResponseSchema, type Logger } from "@ai-lead-recovery/shared";
+import {
+  indexDocumentResponseSchema,
+  type Logger,
+  suggestionResponseSchema,
+} from "@ai-lead-recovery/shared";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
@@ -6,6 +10,7 @@ import { type Embedder, EmbeddingError } from "../knowledge/embedder.js";
 import { InMemoryVectorStore } from "../knowledge/inMemoryVectorStore.js";
 import { KnowledgeIndexer } from "../knowledge/knowledgeIndexer.js";
 import { MockEmbedder } from "../knowledge/mockEmbedder.js";
+import { KnowledgeRetriever } from "../knowledge/retriever.js";
 import { type VectorStore, VectorStoreError } from "../knowledge/vectorStore.js";
 import { MockSuggestionProvider } from "../providers/mock.js";
 import { SuggestionGenerator } from "../suggestionGenerator.js";
@@ -31,7 +36,13 @@ function setup(overrides: { embedder?: Embedder; store?: VectorStore } = {}) {
   const store = overrides.store ?? new InMemoryVectorStore();
   const embedder = overrides.embedder ?? new MockEmbedder();
   const logger = recordingLogger();
-  const generator = new SuggestionGenerator(new MockSuggestionProvider(), undefined, logger);
+  const retriever = new KnowledgeRetriever(embedder, store, { topK: 5, minScore: 0.2 }, logger);
+  const generator = new SuggestionGenerator(
+    new MockSuggestionProvider(),
+    undefined,
+    logger,
+    retriever,
+  );
   const app = createApp(generator, new KnowledgeIndexer(embedder, store, logger), logger);
   const vectorOf = async (text: string) => (await embedder.embed([text]))[0]!;
   return { app, store, logger, vectorOf };
@@ -188,5 +199,75 @@ describe("DELETE /internal/knowledge/:businessId/:documentId", () => {
       "/internal/knowledge/garage-north/doc-brakes",
     );
     expect(response.status).toBe(503);
+  });
+});
+
+/** Stage 6: index → suggestion reports what it found (the prompt doesn't use it yet). */
+describe("POST /internal/suggestions with indexed knowledge", () => {
+  const suggestionFor = (businessId: string, customerText: string) => ({
+    recoveryCaseId: "case-1",
+    businessId,
+    caseType: "unanswered",
+    reason: "no reply within 60 minutes",
+    estimatedValue: 450,
+    customer: { displayName: "דנה", phone: "+972500000000" },
+    conversationContext: [
+      { direction: "inbound", text: customerText, occurredAt: "2026-09-01T10:00:00.000Z" },
+    ],
+    correlationId: "corr-suggest",
+  });
+  const SOUTH_BRAKES = {
+    ...BRAKES_DOC,
+    businessId: "garage-south",
+    documentId: "doc-south-brakes",
+    content: "רפידות בלמים קדמיות: 520 ₪ כולל עבודה.",
+  };
+
+  it("reports the matching chunk as a source, without changing the message yet", async () => {
+    const { app } = setup();
+    await request(app).post("/internal/knowledge/index").send(BRAKES_DOC);
+
+    const response = await request(app)
+      .post("/internal/suggestions")
+      .send(suggestionFor("garage-north", "כמה עולה להחליף רפידות בלמים?"));
+
+    const body = suggestionResponseSchema.parse(response.body);
+    expect(body).toMatchObject({ status: "ok", promptVersion: "hebrew-followup-v1" });
+    if (body.status !== "ok") return;
+    expect(body.retrieval.status).toBe("used");
+    expect(body.retrieval.sources.map((source) => source.documentId)).toEqual(["doc-brakes"]);
+    expect(body.retrieval.contextVersion).toMatch(/^[0-9a-f]{16}$/);
+    // Prompt v1 still ignores knowledge, so the price isn't in the message.
+    expect(body.message).not.toContain("450");
+  });
+
+  it("never reports another garage's document, and says empty when this garage has none", async () => {
+    const { app } = setup();
+    await request(app).post("/internal/knowledge/index").send(BRAKES_DOC);
+    await request(app).post("/internal/knowledge/index").send(SOUTH_BRAKES);
+
+    const north = await request(app)
+      .post("/internal/suggestions")
+      .send(suggestionFor("garage-north", "כמה עולה להחליף רפידות בלמים?"));
+    const empty = await request(app)
+      .post("/internal/suggestions")
+      .send(suggestionFor("garage-without-knowledge", "כמה עולה להחליף רפידות בלמים?"));
+
+    expect(north.body.retrieval.sources.map((s: { documentId: string }) => s.documentId)).toEqual([
+      "doc-brakes",
+    ]);
+    expect(empty.body.retrieval).toEqual({ status: "empty", sources: [], contextVersion: "none" });
+  });
+
+  it("still returns a suggestion, marked failed, when the vector store is down", async () => {
+    const store = new InMemoryVectorStore();
+    store.search = async () => {
+      throw new VectorStoreError("qdrant unreachable");
+    };
+    const response = await request(setup({ store }).app)
+      .post("/internal/suggestions")
+      .send(suggestionFor("garage-north", "כמה עולה להחליף רפידות בלמים?"));
+
+    expect(response.body).toMatchObject({ status: "ok", retrieval: { status: "failed" } });
   });
 });
