@@ -16,6 +16,11 @@ Docker Compose provides:
 - Redis
 - LocalStack (SQS only — `SERVICES=sqs`), for testing the SQS queue adapter
   without a real AWS account
+- Qdrant — vector store for the AI service's knowledge index
+  ([ADR-003](../decisions/ADR-003-qdrant-vector-store.md)). HTTP API on
+  `localhost:6333`, dashboard at <http://localhost:6333/dashboard>. It holds a
+  derived index that can be rebuilt from the API's knowledge documents, so
+  `docker compose down -v` is always safe for it.
 
 The application should support a local queue implementation for day-to-day development (`QUEUE_PROVIDER=local`, the default). AWS SQS is the production adapter (`QUEUE_PROVIDER=sqs`).
 
@@ -57,5 +62,6 @@ Expected values will eventually include:
 - `AI_PROVIDER`
 - `AI_API_KEY`
 - `AI_SERVICE_URL` (services/api's base URL for calling services/ai-service, default `http://localhost:3001`)
+- `QDRANT_URL` (services/ai-service's vector store, default `http://localhost:6333`)
 
 Never put real credentials in source control.

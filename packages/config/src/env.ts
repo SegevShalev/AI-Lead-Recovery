@@ -16,6 +16,8 @@ export const envSchema = z
     AI_FALLBACK_PROVIDER: z.enum(["mock", "openai", "anthropic", "bedrock"]).optional(),
     AI_FALLBACK_API_KEY: z.string().optional(),
     UNANSWERED_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(60),
+    // services/ai-service's vector store (derived knowledge index, not source of truth).
+    QDRANT_URL: z.string().url().default("http://localhost:6333"),
   })
   .refine((env) => env.QUEUE_PROVIDER !== "sqs" || (env.SQS_QUEUE_URL && env.AWS_REGION), {
     message: "SQS_QUEUE_URL and AWS_REGION are required when QUEUE_PROVIDER=sqs",

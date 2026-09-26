@@ -30,6 +30,27 @@ services:
     environment:
       - SERVICES=sqs
 
+  # Vector store for services/ai-service's derived knowledge index (ADR-003).
+  # Pinned to a minor version: Qdrant's on-disk format can change between minors.
+  qdrant:
+    image: qdrant/qdrant:v1.19
+    ports:
+      - "6333:6333" # HTTP API + dashboard at /dashboard
+      - "6334:6334" # gRPC (unused for now)
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      # The image has no curl/wget, so ask /readyz over bash's /dev/tcp.
+      test:
+        - CMD
+        - bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/6333 && printf 'GET /readyz HTTP/1.0\r\n\r\n' >&3 && grep -q ' 200 ' <&3
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
 volumes:
   mongodb-data:
   redis-data:
+  qdrant-data:
