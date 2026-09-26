@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { InMemoryVectorStore } from "./inMemoryVectorStore.js";
 import { QdrantVectorStore } from "./qdrantVectorStore.js";
 import {
@@ -44,35 +44,43 @@ afterAll(async () => {
   }
 });
 
-/** The contract every VectorStore must meet - run once per implementation. */
-function vectorStoreContract(makeStore: () => VectorStore) {
+/**
+ * The contract every VectorStore must meet - run once per implementation.
+ * Every test gets fresh business ids, so tests can share one store (one
+ * Qdrant collection) without seeing each other's points.
+ */
+function vectorStoreContract(getStore: () => VectorStore) {
   let store: VectorStore;
-  beforeEach(async () => {
-    store = makeStore();
-    await store.ensureCollection();
+  let a: string;
+  let b: string;
+  beforeEach(() => {
+    store = getStore();
+    const run = randomUUID();
+    a = `${GARAGE_A}-${run}`;
+    b = `${GARAGE_B}-${run}`;
   });
 
   it("never returns another business's chunks, even identical ones", async () => {
-    await store.replaceDocument(doc(GARAGE_A, "brakes"), chunks(PRICES));
-    await store.replaceDocument(doc(GARAGE_B, "brakes"), chunks(PRICES));
+    await store.replaceDocument(doc(a, "brakes"), chunks(PRICES));
+    await store.replaceDocument(doc(b, "brakes"), chunks(PRICES));
 
-    const hitsA = await store.search(GARAGE_A, PRICES, everything);
-    const hitsB = await store.search(GARAGE_B, PRICES, everything);
+    const hitsA = await store.search(a, PRICES, everything);
+    const hitsB = await store.search(b, PRICES, everything);
 
-    expect(hitsA.map((hit) => hit.businessId)).toEqual([GARAGE_A]);
-    expect(hitsB.map((hit) => hit.businessId)).toEqual([GARAGE_B]);
+    expect(hitsA.map((hit) => hit.businessId)).toEqual([a]);
+    expect(hitsB.map((hit) => hit.businessId)).toEqual([b]);
   });
 
   it("returns hits best-first, with payload, capped by limit and minScore", async () => {
-    await store.replaceDocument(doc(GARAGE_A, "prices"), chunks(PRICES));
-    await store.replaceDocument(doc(GARAGE_A, "mixed"), chunks(MOSTLY_PRICES));
-    await store.replaceDocument(doc(GARAGE_A, "hours"), chunks(HOURS));
+    await store.replaceDocument(doc(a, "prices"), chunks(PRICES));
+    await store.replaceDocument(doc(a, "mixed"), chunks(MOSTLY_PRICES));
+    await store.replaceDocument(doc(a, "hours"), chunks(HOURS));
 
-    const all = await store.search(GARAGE_A, PRICES, everything);
+    const all = await store.search(a, PRICES, everything);
     expect(all.map((hit) => hit.documentId)).toEqual(["prices", "mixed", "hours"]);
     expect(all[0]).toMatchObject({
-      chunkId: chunkPointId(GARAGE_A, "prices", 0),
-      businessId: GARAGE_A,
+      chunkId: chunkPointId(a, "prices", 0),
+      businessId: a,
       documentId: "prices",
       version: 1,
       type: "service",
@@ -82,51 +90,51 @@ function vectorStoreContract(makeStore: () => VectorStore) {
     });
     expect(all[0]!.score).toBeCloseTo(1, 5);
 
-    expect(await store.search(GARAGE_A, PRICES, { limit: 1, minScore: -1 })).toHaveLength(1);
-    const aboveHalf = await store.search(GARAGE_A, PRICES, { limit: 10, minScore: 0.5 });
+    expect(await store.search(a, PRICES, { limit: 1, minScore: -1 })).toHaveLength(1);
+    const aboveHalf = await store.search(a, PRICES, { limit: 10, minScore: 0.5 });
     expect(aboveHalf.map((hit) => hit.documentId)).toEqual(["prices", "mixed"]);
   });
 
   it("re-indexing the same version replaces chunks instead of duplicating them", async () => {
-    await store.replaceDocument(doc(GARAGE_A, "brakes"), chunks(PRICES, HOURS));
-    const again = await store.replaceDocument(doc(GARAGE_A, "brakes"), chunks(PRICES, HOURS));
+    await store.replaceDocument(doc(a, "brakes"), chunks(PRICES, HOURS));
+    const again = await store.replaceDocument(doc(a, "brakes"), chunks(PRICES, HOURS));
 
     expect(again).toEqual({ applied: true, chunkCount: 2 });
-    expect(await store.search(GARAGE_A, PRICES, everything)).toHaveLength(2);
+    expect(await store.search(a, PRICES, everything)).toHaveLength(2);
   });
 
   it("a newer version with fewer chunks leaves no stale chunks behind", async () => {
-    await store.replaceDocument(doc(GARAGE_A, "brakes", 1), chunks(PRICES, HOURS, HOURS));
-    await store.replaceDocument(doc(GARAGE_A, "brakes", 2), chunks(PRICES));
+    await store.replaceDocument(doc(a, "brakes", 1), chunks(PRICES, HOURS, HOURS));
+    await store.replaceDocument(doc(a, "brakes", 2), chunks(PRICES));
 
-    const hits = await store.search(GARAGE_A, PRICES, everything);
+    const hits = await store.search(a, PRICES, everything);
     expect(hits.map((hit) => [hit.chunkIndex, hit.version])).toEqual([[0, 2]]);
   });
 
   it("ignores an older version that arrives late", async () => {
-    await store.replaceDocument(doc(GARAGE_A, "brakes", 3), chunks(PRICES));
-    const late = await store.replaceDocument(doc(GARAGE_A, "brakes", 2), chunks(HOURS, HOURS));
+    await store.replaceDocument(doc(a, "brakes", 3), chunks(PRICES));
+    const late = await store.replaceDocument(doc(a, "brakes", 2), chunks(HOURS, HOURS));
 
     expect(late).toEqual({ applied: false, chunkCount: 1, storedVersion: 3 });
-    const hits = await store.search(GARAGE_A, PRICES, everything);
+    const hits = await store.search(a, PRICES, everything);
     expect(hits.map((hit) => hit.version)).toEqual([3]);
   });
 
   it("deletes only the given business's document", async () => {
-    await store.replaceDocument(doc(GARAGE_A, "brakes"), chunks(PRICES));
-    await store.replaceDocument(doc(GARAGE_A, "hours"), chunks(HOURS));
-    await store.replaceDocument(doc(GARAGE_B, "brakes"), chunks(PRICES));
+    await store.replaceDocument(doc(a, "brakes"), chunks(PRICES));
+    await store.replaceDocument(doc(a, "hours"), chunks(HOURS));
+    await store.replaceDocument(doc(b, "brakes"), chunks(PRICES));
 
-    await store.deleteDocument(GARAGE_A, "brakes");
+    await store.deleteDocument(a, "brakes");
 
-    expect((await store.search(GARAGE_A, PRICES, everything)).map((hit) => hit.documentId)).toEqual(
-      ["hours"],
-    );
-    expect(await store.search(GARAGE_B, PRICES, everything)).toHaveLength(1);
+    expect((await store.search(a, PRICES, everything)).map((hit) => hit.documentId)).toEqual([
+      "hours",
+    ]);
+    expect(await store.search(b, PRICES, everything)).toHaveLength(1);
   });
 
   it("treats deleting an unknown document as success", async () => {
-    await expect(store.deleteDocument(GARAGE_A, "never-indexed")).resolves.toBeUndefined();
+    await expect(store.deleteDocument(a, "never-indexed")).resolves.toBeUndefined();
   });
 
   it("refuses to search without a businessId", async () => {
@@ -139,7 +147,10 @@ describe("InMemoryVectorStore", () => {
 });
 
 describe.skipIf(!qdrantReachable)("QdrantVectorStore (live, needs docker compose qdrant)", () => {
-  vectorStoreContract(() => newQdrantStore());
+  // One collection for the whole contract suite: creating one per test is slow.
+  const shared = newQdrantStore();
+  beforeAll(() => shared.ensureCollection());
+  vectorStoreContract(() => shared);
 
   it("ensureCollection is safe to call repeatedly", async () => {
     const store = newQdrantStore();

@@ -56,7 +56,13 @@ const collectionInfoSchema = z.object({
 
 /** A document has at most ~50 chunks (20k chars / ~400), so one scroll page covers it. */
 const SCROLL_LIMIT = 1_000;
+/** Hot path (search, upsert): a user or services/api is waiting on it. */
 const DEFAULT_TIMEOUT_MS = 2_000;
+/**
+ * One-off setup (create collection / payload index with wait=true) is
+ * legitimately slow on a busy or cold machine and nobody is waiting on it.
+ */
+const SETUP_TIMEOUT_MS = 10_000;
 
 export interface QdrantVectorStoreOptions {
   url: string;
@@ -87,16 +93,19 @@ export class QdrantVectorStore implements VectorStore {
 
   async ensureCollection(): Promise<void> {
     const { collection, dimensions } = this.options;
-    const existing = await this.request("GET", this.collectionPath, undefined, [404]);
+    const timeoutMs = SETUP_TIMEOUT_MS;
+    const existing = await this.request("GET", this.collectionPath, {
+      allowedStatuses: [404],
+      timeoutMs,
+    });
 
     if (existing.status === 404) {
       // 409 = another instance created it between our GET and PUT; that's fine.
-      await this.request(
-        "PUT",
-        this.collectionPath,
-        { vectors: { size: dimensions, distance: "Cosine" } },
-        [409],
-      );
+      await this.request("PUT", this.collectionPath, {
+        body: { vectors: { size: dimensions, distance: "Cosine" } },
+        allowedStatuses: [409],
+        timeoutMs,
+      });
     } else {
       const info = collectionInfoSchema.safeParse(existing.body);
       if (!info.success) {
@@ -114,12 +123,12 @@ export class QdrantVectorStore implements VectorStore {
     // Creating an index that already exists is a no-op in Qdrant, so this is safe on every startup.
     // is_tenant tells Qdrant most searches are filtered by businessId, so it lays data out per tenant.
     await this.request("PUT", `${this.collectionPath}/index?wait=true`, {
-      field_name: "businessId",
-      field_schema: { type: "keyword", is_tenant: true },
+      body: { field_name: "businessId", field_schema: { type: "keyword", is_tenant: true } },
+      timeoutMs,
     });
     await this.request("PUT", `${this.collectionPath}/index?wait=true`, {
-      field_name: "documentId",
-      field_schema: "keyword",
+      body: { field_name: "documentId", field_schema: "keyword" },
+      timeoutMs,
     });
   }
 
@@ -136,28 +145,32 @@ export class QdrantVectorStore implements VectorStore {
     // old or the new chunks, never an empty document.
     if (chunks.length > 0) {
       await this.request("PUT", `${this.collectionPath}/points?wait=true`, {
-        points: chunks.map((chunk) => ({
-          id: chunkPointId(doc.businessId, doc.documentId, chunk.index),
-          vector: chunk.vector,
-          payload: {
-            businessId: doc.businessId,
-            documentId: doc.documentId,
-            version: doc.version,
-            type: doc.type,
-            title: doc.title,
-            chunkIndex: chunk.index,
-            text: chunk.text,
-            embeddingModel: this.options.embeddingModel,
-          },
-        })),
+        body: {
+          points: chunks.map((chunk) => ({
+            id: chunkPointId(doc.businessId, doc.documentId, chunk.index),
+            vector: chunk.vector,
+            payload: {
+              businessId: doc.businessId,
+              documentId: doc.documentId,
+              version: doc.version,
+              type: doc.type,
+              title: doc.title,
+              chunkIndex: chunk.index,
+              text: chunk.text,
+              embeddingModel: this.options.embeddingModel,
+            },
+          })),
+        },
       });
     }
     await this.request("POST", `${this.collectionPath}/points/delete?wait=true`, {
-      filter: {
-        must: [
-          ...documentConditions(doc.businessId, doc.documentId),
-          { key: "chunkIndex", range: { gte: chunks.length } },
-        ],
+      body: {
+        filter: {
+          must: [
+            ...documentConditions(doc.businessId, doc.documentId),
+            { key: "chunkIndex", range: { gte: chunks.length } },
+          ],
+        },
       },
     });
     return { applied: true, chunkCount: chunks.length };
@@ -167,18 +180,20 @@ export class QdrantVectorStore implements VectorStore {
     assertBusinessId(businessId);
     // Deleting by a filter that matches nothing is a 200 in Qdrant, so unknown documents are fine.
     await this.request("POST", `${this.collectionPath}/points/delete?wait=true`, {
-      filter: { must: documentConditions(businessId, documentId) },
+      body: { filter: { must: documentConditions(businessId, documentId) } },
     });
   }
 
   async search(businessId: string, vector: number[], options: SearchOptions): Promise<ChunkHit[]> {
     assertBusinessId(businessId);
     const response = await this.request("POST", `${this.collectionPath}/points/query`, {
-      query: vector,
-      filter: { must: [{ key: "businessId", match: { value: businessId } }] },
-      limit: options.limit,
-      score_threshold: options.minScore,
-      with_payload: true,
+      body: {
+        query: vector,
+        filter: { must: [{ key: "businessId", match: { value: businessId } }] },
+        limit: options.limit,
+        score_threshold: options.minScore,
+        with_payload: true,
+      },
     });
     const parsed = queryResponseSchema.safeParse(response.body);
     if (!parsed.success) throw new VectorStoreError("qdrant query response failed validation");
@@ -200,10 +215,12 @@ export class QdrantVectorStore implements VectorStore {
     documentId: string,
   ): Promise<{ version: number; chunkCount: number } | undefined> {
     const response = await this.request("POST", `${this.collectionPath}/points/scroll`, {
-      filter: { must: documentConditions(businessId, documentId) },
-      limit: SCROLL_LIMIT,
-      with_payload: ["version"],
-      with_vector: false,
+      body: {
+        filter: { must: documentConditions(businessId, documentId) },
+        limit: SCROLL_LIMIT,
+        with_payload: ["version"],
+        with_vector: false,
+      },
     });
     const parsed = scrollResponseSchema.safeParse(response.body);
     if (!parsed.success) throw new VectorStoreError("qdrant scroll response failed validation");
@@ -219,10 +236,13 @@ export class QdrantVectorStore implements VectorStore {
   private async request(
     method: string,
     path: string,
-    body?: unknown,
-    allowedStatuses: number[] = [],
+    {
+      body,
+      allowedStatuses = [],
+      timeoutMs = this.timeoutMs,
+    }: { body?: unknown; allowedStatuses?: number[]; timeoutMs?: number } = {},
   ): Promise<{ status: number; body: unknown }> {
-    const init: RequestInit = { method, signal: AbortSignal.timeout(this.timeoutMs) };
+    const init: RequestInit = { method, signal: AbortSignal.timeout(timeoutMs) };
     if (body !== undefined) {
       init.headers = { "content-type": "application/json" };
       init.body = JSON.stringify(body);
