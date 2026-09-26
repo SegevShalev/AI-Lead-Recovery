@@ -10,18 +10,18 @@ Small stages on one branch, `feature/rag-retrieval-pipeline` (from `dev`).
 Every stage ends with a commit that leaves everything green and runnable. If
 I stop after any stage, nothing is broken and nothing is half-wired.
 
-| #   | Stage                               | Needs         | Done when                                                     |
-| --- | ----------------------------------- | ------------- | ------------------------------------------------------------- |
-| 0   | Playground ✅                       | —             | I can explain embeddings, cosine, top-k, threshold, isolation |
-| 1   | Qdrant container + config           | —             | dashboard at `localhost:6333/dashboard`, env tests pass       |
-| 2   | Chunker                             | —             | pure function, Hebrew unit tests                              |
-| 3   | Embedder (mock + OpenAI)            | —             | mock is deterministic; OpenAI tested with stubbed `fetch`     |
-| 4   | Vector store                        | 1, 3          | isolation + idempotency tests pass (in-memory and Qdrant)     |
-| 5   | Index + delete endpoints → **PR A** | 2, 3, 4       | Erez's CRUD indexes into real Qdrant                          |
-| 6   | Retriever (reported, not used)      | 5             | every suggestion returns real `retrieval` info                |
-| 7   | Retrieval eval + tuning             | 6, Erez's #10 | hit-rate table; `k` and `minScore` chosen from numbers        |
-| 8   | Prompt v2 + grounding check         | 7             | invented prices rejected, injected text not followed          |
-| 9   | Three-way comparison → **PR B**     | 8             | no-knowledge vs all-knowledge vs RAG table in the PR          |
+| #   | Stage                            | Needs         | Done when                                                     |
+| --- | -------------------------------- | ------------- | ------------------------------------------------------------- |
+| 0   | Playground ✅                    | —             | I can explain embeddings, cosine, top-k, threshold, isolation |
+| 1   | Qdrant container + config ✅     | —             | dashboard at `localhost:6333/dashboard`, env tests pass       |
+| 2   | Chunker ✅                       | —             | pure function, Hebrew unit tests                              |
+| 3   | Embedder (mock + OpenAI) ✅      | —             | mock is deterministic; OpenAI tested with stubbed `fetch`     |
+| 4   | Vector store ✅                  | 1, 3          | isolation + idempotency tests pass (in-memory and Qdrant)     |
+| 5   | Index + delete API ✅ → **PR A** | 2, 3, 4       | Erez's CRUD indexes into real Qdrant                          |
+| 6   | Retriever (reported, not used)   | 5             | every suggestion returns real `retrieval` info                |
+| 7   | Retrieval eval + tuning          | 6, Erez's #10 | hit-rate table; `k` and `minScore` chosen from numbers        |
+| 8   | Prompt v2 + grounding check      | 7             | invented prices rejected, injected text not followed          |
+| 9   | Three-way comparison → **PR B**  | 8             | no-knowledge vs all-knowledge vs RAG table in the PR          |
 
 ```
 Build the parts          Store them            Use them                 Prove it
@@ -228,15 +228,22 @@ from AGENTS.md.
   - `POST /internal/knowledge/index` → validate with the shared schema →
     chunk → embed → `replaceDocument` → `{ status: "ok", chunkCount, embeddingModel }`.
   - `DELETE /internal/knowledge/:businessId/:documentId` → 204.
-- `index.ts`: call `ensureCollection` on startup.
-- Dev script `pnpm --filter @ai-lead-recovery/ai-service index:fixtures`
-  indexes `fixtures/knowledge/garages.json` for both garages. It needs Erez's #10
-  merged; until then, the route tests use inline Hebrew docs.
+- `index.ts`: call `ensureCollection` on startup, **in the background with
+  retries**, so the service (and Phase 3 suggestions) still starts when Qdrant is down.
 - Tests with supertest and the in-memory store: 200 on valid input, 400 on invalid input, indexing twice
   gives the same chunk count, an older version returns 200 and changes nothing, and deleting an unknown doc returns 204.
 
+**Moved to Stage 7:** the `index:fixtures` dev script. It needs
+`fixtures/knowledge/garages.json` from Erez's #10, which isn't merged yet, and
+the Stage 7 eval runner indexes the same file anyway.
+
 **Done when:** Erez's CRUD (#11) indexes into real Qdrant, the dashboard shows the
 points, and Visualize (PCA, colored by `businessId`) looks like the playground map.
+
+**Status:** ✅ verified by hand on 2026-09-27 with 6 docs for two garages:
+all 200, re-sending one kept the count at 6, DELETE of an unknown id gave 204,
+and the logs held ids and counts only. The end-to-end check with Erez's #11 is
+still to do.
 
 **Commit:** `feat(ai-service): add knowledge index and delete endpoints`
 **Then:** open **PR A** into `dev`.
@@ -281,7 +288,12 @@ The prompt stays at `v1` in this stage on purpose.
   something, plus the top score. Totals: hit rate, and the
   "should be empty" questions that returned noise.
 - Run it with `EMBEDDING_PROVIDER=openai`. The mock can't match paraphrases, so
-  its numbers mean nothing here (costs cents).
+  its numbers mean nothing here (costs cents). Measured in Stage 3: the mock
+  scores a same-words question 0.54 against the brakes chunk, but a paraphrase
+  only 0.08.
+- `pnpm --filter @ai-lead-recovery/ai-service index:fixtures` (moved from
+  Stage 5): indexes the same `garages.json` into the real Qdrant through
+  `KnowledgeIndexer`, so the dashboard shows real data without Erez's stack.
 - Change one thing at a time (threshold, `k`, chunk wording), re-run, and record the numbers
   in this file.
 
