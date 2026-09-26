@@ -28,7 +28,9 @@ The service should remain provider-agnostic. A local deterministic/mock provider
 
 > ⚠️ Applies whenever `EMBEDDING_PROVIDER` changes between `mock` and `openai`.
 
-The collection can hold only one embedder's vectors. After changing
+The collection can hold only one embedder's vectors. At startup the service
+checks both the vector size and the model name stored on the chunks, so a switch
+to another model with the same vector size is caught too. After changing
 `EMBEDDING_PROVIDER`, the service logs this error and keeps retrying:
 
 ```

@@ -10,26 +10,26 @@ Small stages on one branch, `feature/rag-retrieval-pipeline` (from `dev`).
 Every stage ends with a commit that leaves everything green and runnable. If
 I stop after any stage, nothing is broken and nothing is half-wired.
 
-| #   | Stage                            | Needs         | Done when                                                     |
-| --- | -------------------------------- | ------------- | ------------------------------------------------------------- |
-| 0   | Playground ✅                    | —             | I can explain embeddings, cosine, top-k, threshold, isolation |
-| 1   | Qdrant container + config ✅     | —             | dashboard at `localhost:6333/dashboard`, env tests pass       |
-| 2   | Chunker ✅                       | —             | pure function, Hebrew unit tests                              |
-| 3   | Embedder (mock + OpenAI) ✅      | —             | mock is deterministic; OpenAI tested with stubbed `fetch`     |
-| 4   | Vector store ✅                  | 1, 3          | isolation + idempotency tests pass (in-memory and Qdrant)     |
-| 5   | Index + delete API ✅ → **PR A** | 2, 3, 4       | Erez's CRUD indexes into real Qdrant                          |
-| 6   | Retriever (reported, not used)   | 5             | every suggestion returns real `retrieval` info                |
-| 7   | Retrieval eval + tuning          | 6, Erez's #10 | hit-rate table; `k` and `minScore` chosen from numbers        |
-| 8   | Prompt v2 + grounding check      | 7             | invented prices rejected, injected text not followed          |
-| 9   | Three-way comparison → **PR B**  | 8             | no-knowledge vs all-knowledge vs RAG table in the PR          |
+| #   | Stage                          | Needs         | Done when                                                     |
+| --- | ------------------------------ | ------------- | ------------------------------------------------------------- |
+| 0   | Playground ✅                  | —             | I can explain embeddings, cosine, top-k, threshold, isolation |
+| 1   | Qdrant container + config ✅   | —             | dashboard at `localhost:6333/dashboard`, env tests pass       |
+| 2   | Chunker ✅                     | —             | pure function, Hebrew unit tests                              |
+| 3   | Embedder (mock + OpenAI) ✅    | —             | mock is deterministic; OpenAI tested with stubbed `fetch`     |
+| 4   | Vector store ✅                | 1, 3          | isolation + idempotency tests pass (in-memory and Qdrant)     |
+| 5   | Index + delete API ✅          | 2, 3, 4       | Erez's CRUD indexes into real Qdrant                          |
+| 6   | Retriever (reported, not used) | 5             | every suggestion returns real `retrieval` info                |
+| 7   | Retrieval eval + tuning        | 6, Erez's #10 | hit-rate table; `k` and `minScore` chosen from numbers        |
+| 8   | Prompt v2 + grounding check    | 7             | invented prices rejected, injected text not followed          |
+| 9   | Three-way comparison → **PR**  | 8             | no-knowledge vs all-knowledge vs RAG table in the PR          |
 
 ```
 Build the parts          Store them            Use them                 Prove it
 1 Qdrant ─┐
 2 Chunker ├──► 4 Vector store ──► 5 Index API ──► 6 Retriever ──► 7 Retrieval eval
-3 Embedder┘                         (PR A)                             │
+3 Embedder┘                                                            │
                                                                        ▼
-                                          9 Three-way (PR B) ◄── 8 Prompt v2 + grounding
+                                          9 Three-way (→ PR) ◄── 8 Prompt v2 + grounding
 ```
 
 Stages 1–3 don't depend on each other. From 4 on, each stage uses the one
@@ -56,6 +56,9 @@ before it.
 > Decided 2026-09-27 (option A). We keep the agreed single `knowledge_chunks`
 > collection (checklist decision 1). The mock embedder makes 256-dim vectors
 > and OpenAI makes 1536-dim vectors, so the collection fits only one of them.
+> The service also compares the model name stored on the chunks, so a switch
+> to another model **of the same size** is caught too, instead of silently mixing
+> vectors that can't be compared.
 > **Every time `EMBEDDING_PROVIDER` changes, delete the collection and reindex:**
 >
 > ```bash
@@ -75,7 +78,9 @@ before it.
   changes only after Segev approves each one.**
 - Before each commit: `pnpm typecheck`, `pnpm lint`, `pnpm test`,
   `pnpm format:check` all pass.
-- Two PRs into `dev`, Erez reviews: **PR A after Stage 5**, **PR B after Stage 9**.
+- **One PR for the whole track** into `dev`: [#12](https://github.com/SegevShalev/AI-Lead-Recovery/pull/12),
+  kept as a **draft** while stages land, marked ready for Erez's review after Stage 9
+  (decided 2026-09-27; replaces the earlier "PR A after Stage 5, PR B after Stage 9").
 - Merge `dev` into the branch after each of Erez's merges, so conflicts stay tiny.
 - Only touch files in the stage. If I need something outside
   `services/ai-service`, talk to Erez first.
@@ -234,7 +239,7 @@ from AGENTS.md.
 
 ---
 
-## Stage 5 — Index + delete endpoints → PR A
+## Stage 5 — Index + delete endpoints
 
 **Goal:** the API (Erez) can now send documents, and I can see them in the dashboard.
 **Learn:** the ingestion half of RAG, end to end: chunk → embed → store.
@@ -263,7 +268,7 @@ and the logs held ids and counts only. The end-to-end check with Erez's #11 is
 still to do.
 
 **Commit:** `feat(ai-service): add knowledge index and delete endpoints`
-**Then:** open **PR A** into `dev`.
+**Then:** push to the draft PR (#12). No review request yet.
 
 ---
 
@@ -346,7 +351,7 @@ The prompt stays at `v1` in this stage on purpose.
 
 ---
 
-## Stage 9 — Three-way comparison → PR B
+## Stage 9 — Three-way comparison → PR ready
 
 **Goal:** prove (or disprove) that RAG helps. This is the Phase 4 exit evidence.
 
@@ -363,7 +368,8 @@ The prompt stays at `v1` in this stage on purpose.
 size, that's a valid result. Record it and why.
 
 **Commit:** `feat(ai-service): add three-way knowledge comparison`
-**Then:** open **PR B** into `dev`.
+**Then:** update the #12 description with the results table and mark it
+ready for Erez's review.
 
 ---
 
@@ -378,3 +384,18 @@ From the checklist, done together once both sides are in `dev`:
   ⚠️ Delete `knowledge_chunks` before switching to the bad-key `openai` setup.
   Otherwise retrieval fails because of the vector-size mismatch, not the bad
   key, and the seam passes for the wrong reason.
+
+## Later — switching the embedding model in production (Phase 6)
+
+With one collection, a production model switch today means knowledge is
+off for every business until someone deletes the collection and reindexes
+all documents. It's safe (suggestions degrade to "no knowledge") but not
+smooth. The standard fix is a **blue/green reindex**:
+
+1. create a new collection for the new model, while the old one keeps serving;
+2. reindex every document into it (services/api pushes them, since it owns the
+   source documents; that needs a "reindex all" job on Erez's side);
+3. atomically repoint a Qdrant **alias** (`knowledge_chunks`) to the new collection;
+4. delete the old collection.
+
+This means zero downtime and no mixed vectors. It belongs with the Phase 6 AWS work, not now.

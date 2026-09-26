@@ -33,9 +33,13 @@ const qdrantReachable = await fetch(`${QDRANT_URL}/readyz`, { signal: AbortSigna
   .catch(() => false);
 const testCollections: string[] = [];
 
-function newQdrantStore(dimensions = 4, collection = `test_${randomUUID()}`) {
+function newQdrantStore(
+  dimensions = 4,
+  collection = `test_${randomUUID()}`,
+  embeddingModel = "test",
+) {
   testCollections.push(collection);
-  return new QdrantVectorStore({ url: QDRANT_URL, collection, dimensions, embeddingModel: "test" });
+  return new QdrantVectorStore({ url: QDRANT_URL, collection, dimensions, embeddingModel });
 }
 
 afterAll(async () => {
@@ -165,6 +169,23 @@ describe.skipIf(!qdrantReachable)("QdrantVectorStore (live, needs docker compose
     const mismatch = newQdrantStore(5, collection).ensureCollection();
     await expect(mismatch).rejects.toBeInstanceOf(CollectionMismatchError);
     await expect(mismatch).rejects.toThrow(/embedder changed: delete the collection/);
+  });
+
+  it("fails loudly when the collection holds another model's vectors of the same size", async () => {
+    const collection = `test_${randomUUID()}`;
+    // Empty collection: any model may take it over, there is nothing to mix.
+    await newQdrantStore(4, collection, "model-a").ensureCollection();
+    await expect(
+      newQdrantStore(4, collection, "model-b").ensureCollection(),
+    ).resolves.toBeUndefined();
+
+    const storeA = newQdrantStore(4, collection, "model-a");
+    await storeA.replaceDocument(doc("garage-a", "brakes"), chunks(PRICES));
+
+    await expect(storeA.ensureCollection()).resolves.toBeUndefined();
+    const mismatch = newQdrantStore(4, collection, "model-b").ensureCollection();
+    await expect(mismatch).rejects.toBeInstanceOf(CollectionMismatchError);
+    await expect(mismatch).rejects.toThrow(/holds vectors from "model-a".*"model-b"/);
   });
 });
 

@@ -45,6 +45,11 @@ const queryResponseSchema = z.object({
 const scrollResponseSchema = z.object({
   result: z.object({ points: z.array(z.object({ payload: z.object({ version: z.number() }) })) }),
 });
+const sampleResponseSchema = z.object({
+  result: z.object({
+    points: z.array(z.object({ payload: z.object({ embeddingModel: z.string() }) })),
+  }),
+});
 const collectionInfoSchema = z.object({
   result: z.object({
     config: z.object({
@@ -110,12 +115,24 @@ export class QdrantVectorStore implements VectorStore {
       if (!info.success) {
         throw new VectorStoreError(`collection ${collection} has an unexpected vector config`);
       }
+      const fix =
+        `The embedder changed: delete the collection ` +
+        `(curl -X DELETE ${this.baseUrl}${this.collectionPath}), restart ai-service and reindex.`;
       const { size, distance } = info.data.result.config.params.vectors;
       if (size !== dimensions || distance !== "Cosine") {
         throw new CollectionMismatchError(
           `collection ${collection} has size=${size} distance=${distance}, expected ` +
-            `size=${dimensions} distance=Cosine. The embedder changed: delete the collection ` +
-            `(curl -X DELETE ${this.baseUrl}${this.collectionPath}), restart ai-service and reindex.`,
+            `size=${dimensions} distance=Cosine. ${fix}`,
+        );
+      }
+      // Same size isn't enough: two models can both make 1536-dim vectors, and
+      // mixing them would silently wreck similarity (their spaces don't line
+      // up). Every point records its model, so compare one against ours.
+      const storedModel = await this.sampleEmbeddingModel();
+      if (storedModel !== undefined && storedModel !== this.options.embeddingModel) {
+        throw new CollectionMismatchError(
+          `collection ${collection} holds vectors from "${storedModel}", but the current ` +
+            `embedder is "${this.options.embeddingModel}". ${fix}`,
         );
       }
     }
@@ -208,6 +225,17 @@ export class QdrantVectorStore implements VectorStore {
       chunkId: String(point.id),
       score: point.score,
     }));
+  }
+
+  /** The model of any one stored point, or undefined if the collection is empty. */
+  private async sampleEmbeddingModel(): Promise<string | undefined> {
+    const response = await this.request("POST", `${this.collectionPath}/points/scroll`, {
+      body: { limit: 1, with_payload: ["embeddingModel"], with_vector: false },
+      timeoutMs: SETUP_TIMEOUT_MS,
+    });
+    const parsed = sampleResponseSchema.safeParse(response.body);
+    if (!parsed.success) throw new VectorStoreError("qdrant scroll response failed validation");
+    return parsed.data.result.points[0]?.payload.embeddingModel;
   }
 
   private async storedDocument(
