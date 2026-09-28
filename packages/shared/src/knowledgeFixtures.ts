@@ -8,10 +8,20 @@ import { knowledgeDocumentInputSchema } from "./knowledge.js";
  * retrieval against eval-questions.json. Garages are referenced by a stable
  * `key`, not a Mongo id, since ids differ per database.
  */
+/**
+ * A seeded document. `key` is its stable identity (stored as
+ * metadata.fixtureKey), so the title can be edited without the seed
+ * mistaking it for a new document.
+ */
+export const fixtureDocumentSchema = knowledgeDocumentInputSchema.extend({
+  key: z.string().regex(/^[a-z0-9-]+$/, "lowercase letters, digits and dashes"),
+});
+export type FixtureDocument = z.infer<typeof fixtureDocumentSchema>;
+
 export const garageFixtureSchema = z.object({
   key: z.string().min(1),
   name: z.string().min(1),
-  documents: z.array(knowledgeDocumentInputSchema).min(1),
+  documents: z.array(fixtureDocumentSchema).min(1),
 });
 export type GarageFixture = z.infer<typeof garageFixtureSchema>;
 
