@@ -1,6 +1,9 @@
 import { mongoose } from "@ai-lead-recovery/db";
+import { knowledgeDocumentTypeSchema, knowledgeIndexStatusSchema } from "@ai-lead-recovery/shared";
 import type {
   ConversationStatus,
+  KnowledgeDocumentType,
+  KnowledgeIndexStatus,
   MessageDirection,
   RecoveryCaseStatus,
   RecoveryCaseType,
@@ -180,3 +183,47 @@ const suggestionSchema = new Schema<SuggestionDoc>(
 suggestionSchema.index({ recoveryCaseId: 1, createdAt: -1 });
 
 export const Suggestion = model<SuggestionDoc>("Suggestion", suggestionSchema);
+
+/**
+ * RAG source of truth, owned by the API
+ * (docs/architecture/data-model.md#businessknowledgedocument). The AI service
+ * keeps a derived chunk index built from what the API sends it and never reads
+ * this collection. `version` bumps on every write so the index can tell stale
+ * updates apart; `indexStatus` is "pending" when the AI service couldn't be
+ * reached on save (docs/development/phase-4-checklist.md, Track 2).
+ */
+interface BusinessKnowledgeDocumentDoc {
+  businessId: mongoose.Types.ObjectId;
+  type: KnowledgeDocumentType;
+  title: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  version: number;
+  indexStatus: KnowledgeIndexStatus;
+}
+
+const businessKnowledgeDocumentSchema = new Schema<BusinessKnowledgeDocumentDoc>(
+  {
+    businessId: { type: Schema.Types.ObjectId, ref: "Business", required: true },
+    // Enums come from the shared Zod contract so the two can't drift: a type
+    // the route's validation accepts is always one Mongo accepts too.
+    type: { type: String, enum: knowledgeDocumentTypeSchema.options, required: true },
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    metadata: { type: Schema.Types.Mixed },
+    version: { type: Number, required: true, min: 1, default: 1 },
+    indexStatus: {
+      type: String,
+      enum: knowledgeIndexStatusSchema.options,
+      required: true,
+      default: "pending",
+    },
+  },
+  { timestamps: true },
+);
+businessKnowledgeDocumentSchema.index({ businessId: 1, type: 1, version: 1 });
+
+export const BusinessKnowledgeDocument = model<BusinessKnowledgeDocumentDoc>(
+  "BusinessKnowledgeDocument",
+  businessKnowledgeDocumentSchema,
+);
