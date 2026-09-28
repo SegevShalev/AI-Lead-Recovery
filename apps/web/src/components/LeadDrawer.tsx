@@ -1,11 +1,14 @@
 import { KIND_LABEL, type Lead } from "../data/leads.js";
 import { formatElapsed, formatMoney } from "../lib/format.js";
+import type { KnowledgeBasis } from "../lib/knowledge.js";
 
 interface LeadDrawerProps {
   lead: Lead;
   draft: string;
   draftLoading: boolean;
   draftError: string | null;
+  /** Which business facts the current draft was built on; absent while loading or after an error. */
+  basis: KnowledgeBasis | null;
   sent: boolean;
   onClose: () => void;
   onEditDraft: (value: string) => void;
@@ -19,6 +22,7 @@ export function LeadDrawer({
   draft,
   draftLoading,
   draftError,
+  basis,
   sent,
   onClose,
   onEditDraft,
@@ -112,6 +116,11 @@ export function LeadDrawer({
             placeholder={draftLoading ? "Drafting a follow-up…" : undefined}
             onChange={(e) => onEditDraft(e.target.value)}
           />
+          {basis && !draftLoading ? (
+            <div className={`composer__basis composer__basis--${basis.tone}`} dir="auto">
+              {basis.text}
+            </div>
+          ) : null}
           <div className="composer__actions">
             <button
               type="button"

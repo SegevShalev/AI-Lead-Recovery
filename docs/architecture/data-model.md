@@ -86,6 +86,7 @@ Vector/index-specific representation must remain behind the AI/retrieval abstrac
 - `reasoningSummary`
 - `model`
 - `promptVersion`
+- `retrievalStatus` (optional) = used | empty | failed — from the AI service's `retrieval.status`; "failed" means it generated without knowledge
 - `retrievalContextVersion` (optional)
 - `retrievalSources` (optional) — `{documentId, version, chunkId, score}[]` from the AI service's `retrieval` field, so the dashboard can show which knowledge a suggestion used
 - `createdAt`

@@ -1,5 +1,9 @@
 import { mongoose } from "@ai-lead-recovery/db";
-import { knowledgeDocumentTypeSchema, knowledgeIndexStatusSchema } from "@ai-lead-recovery/shared";
+import {
+  knowledgeDocumentTypeSchema,
+  knowledgeIndexStatusSchema,
+  retrievalInfoSchema,
+} from "@ai-lead-recovery/shared";
 import type {
   ConversationStatus,
   KnowledgeDocumentType,
@@ -7,6 +11,8 @@ import type {
   MessageDirection,
   RecoveryCaseStatus,
   RecoveryCaseType,
+  RetrievalInfo,
+  RetrievalSource,
 } from "@ai-lead-recovery/shared";
 
 const { Schema, model } = mongoose;
@@ -154,7 +160,9 @@ export const RecoveryCase = model<RecoveryCaseDoc>("RecoveryCase", recoveryCaseS
  * One row per generated AI follow-up (docs/architecture/data-model.md#suggestion).
  * `reasoningSummary` is the model's short user-facing rationale, never
  * chain-of-thought (docs/architecture/ai-architecture.md). Immutable once
- * created, so no `updatedAt`.
+ * created, so no `updatedAt`. The retrieval* fields record which knowledge
+ * the AI service grounded it on (optional: suggestions from before Phase 4
+ * have none).
  */
 interface SuggestionDoc {
   recoveryCaseId: mongoose.Types.ObjectId;
@@ -164,7 +172,9 @@ interface SuggestionDoc {
   reasoningSummary: string;
   model: string;
   promptVersion: string;
+  retrievalStatus?: RetrievalInfo["status"];
   retrievalContextVersion?: string;
+  retrievalSources?: RetrievalSource[];
 }
 
 const suggestionSchema = new Schema<SuggestionDoc>(
@@ -176,7 +186,22 @@ const suggestionSchema = new Schema<SuggestionDoc>(
     reasoningSummary: { type: String, required: true },
     model: { type: String, required: true },
     promptVersion: { type: String, required: true },
+    retrievalStatus: { type: String, enum: retrievalInfoSchema.shape.status.options },
     retrievalContextVersion: { type: String },
+    retrievalSources: {
+      type: [
+        new Schema<RetrievalSource>(
+          {
+            documentId: { type: String, required: true },
+            version: { type: Number, required: true },
+            chunkId: { type: String, required: true },
+            score: { type: Number, required: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: undefined,
+    },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
