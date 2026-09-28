@@ -90,9 +90,11 @@ export const indexDocumentRequestSchema = z.object({
   arrive in (e.g. a manual reindex racing a fresh edit).
 - **Eval set owner + location:** Erez writes it alongside the seed data (the
   person who writes the facts writes the questions), at
-  `services/ai-service/eval/questions.json` — each entry: `question`,
-  `businessId` (seed business), `expectedDocumentTitles` (empty array = the
-  correct answer is "nothing").
+  [`fixtures/knowledge/`](../../fixtures/knowledge/README.md) — repo root,
+  not inside ai-service, because the API seed and the eval runner read the
+  same garages file. Each question: `id`, `garage` (fixture key like
+  `north`, not a Mongo id), `question`, `expectedDocumentTitles` (empty
+  array = the correct answer is "nothing").
 - **OpenAI key:** Segev creates one for the real embedder; `EMBEDDING_*`
   entries land in `.env.example` with that adapter. Mock stays the default.
 
@@ -167,9 +169,12 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
       If the AI service is down: save the document anyway, mark it
       `indexStatus: "pending"`, and expose a "reindex" action — don't lose the
       owner's edit.
-- [ ] **Seed data** — Hebrew garage knowledge for _two_ businesses
-      (price list, hours, warranty policy) in `services/api/src/scripts/seed.ts`,
-      with deliberately different prices so a leak is obvious.
+- [x] **Seed data** — Hebrew garage knowledge for _two_ businesses
+      (price list, hours, warranty policy), with deliberately different
+      prices so a leak is obvious. Data in
+      [`fixtures/knowledge/garages.json`](../../fixtures/knowledge/README.md),
+      loaded idempotently by `services/api/src/scripts/seed.ts`
+      (`seed south` targets the second garage's conversation).
 - [ ] **Persist retrieval metadata** — `Suggestion.retrievalContextVersion` +
       source ids from the new `retrieval` field.
 - [ ] **Dashboard** — a simple knowledge page (list/add/edit/delete) and, in
@@ -190,7 +195,9 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 - [ ] **Degrade seam** — stop the embedding provider (bad key); suggestion
       still comes back, marked `retrieval.status: "failed"`, dashboard says
       no knowledge was used.
-- [ ] **Eval set (build early, reuse on every change)** — a fixed list of
+- [ ] **Eval set (build early, reuse on every change)** — questions written
+      in [`fixtures/knowledge/eval-questions.json`](../../fixtures/knowledge/eval-questions.json)
+      (18, Erez); still needs the runner (Segev) to score it. A fixed list of
       10–20 customer questions against the seeded garages, each labelled with
       the knowledge chunk that _should_ come back (and some with no correct
       chunk, to check we return nothing rather than noise). Checked into the

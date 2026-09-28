@@ -5,3 +5,4 @@ export * from "./logger.js";
 export * from "./dashboardCache.js";
 export * from "./suggestions.js";
 export * from "./knowledge.js";
+export * from "./knowledgeFixtures.js";
