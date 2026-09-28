@@ -170,7 +170,9 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
       `indexStatus: "pending"`, and expose a "reindex" action — don't lose the
       owner's edit. **Delete is the exception:** it removes from the index
       first and keeps the document (503) if it can't, so a deleted price can't
-      stay retrievable. DELETE of a document the AI service never indexed
+      stay retrievable. If the index delete succeeds but Mongo's then fails, the
+      document is marked pending and the owner gets 500 — retrying is safe.
+      DELETE of a document the AI service never indexed
       should still return 204 (idempotent) — Track 1, please match.
 - [x] **Seed data** — Hebrew garage knowledge for _two_ businesses
       (price list, hours, warranty policy), with deliberately different

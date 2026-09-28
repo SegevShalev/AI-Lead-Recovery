@@ -1,5 +1,9 @@
 import { mongoose } from "@ai-lead-recovery/db";
-import { knowledgeDocumentTypeSchema, knowledgeIndexStatusSchema } from "@ai-lead-recovery/shared";
+import {
+  knowledgeDocumentTypeSchema,
+  knowledgeIndexStatusSchema,
+  retrievalInfoSchema,
+} from "@ai-lead-recovery/shared";
 import type {
   ConversationStatus,
   KnowledgeDocumentType,
@@ -182,7 +186,7 @@ const suggestionSchema = new Schema<SuggestionDoc>(
     reasoningSummary: { type: String, required: true },
     model: { type: String, required: true },
     promptVersion: { type: String, required: true },
-    retrievalStatus: { type: String, enum: ["used", "empty", "failed"] },
+    retrievalStatus: { type: String, enum: retrievalInfoSchema.shape.status.options },
     retrievalContextVersion: { type: String },
     retrievalSources: {
       type: [

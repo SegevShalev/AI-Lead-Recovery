@@ -87,6 +87,11 @@ export function KnowledgePage({ businessId }: KnowledgePageProps) {
           `Couldn't remove "${doc.title}" from the AI's memory right now, so nothing was deleted. Try again in a moment.`,
         );
       }
+      if (result === "delete_failed") {
+        throw new Error(
+          `"${doc.title}" is no longer used by the AI, but couldn't be removed from the list. Delete it again.`,
+        );
+      }
     });
   }
 

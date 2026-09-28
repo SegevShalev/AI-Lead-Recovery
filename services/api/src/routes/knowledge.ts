@@ -132,13 +132,12 @@ export function createKnowledgeRouter(deps: {
     }
 
     // Atomic bump, so two concurrent edits get two different versions.
+    // `metadata` absent from the body means "keep it": the dashboard never
+    // sends it, and must not wipe what a seed or import stored there
+    // (e.g. metadata.fixtureKey). Sending it replaces it.
     const doc = await BusinessKnowledgeDocument.findOneAndUpdate(
       { _id: documentId, businessId },
-      {
-        $set: { ...input.data, indexStatus: "pending" },
-        $inc: { version: 1 },
-        ...(input.data.metadata === undefined ? { $unset: { metadata: 1 } } : {}),
-      },
+      { $set: { ...input.data, indexStatus: "pending" }, $inc: { version: 1 } },
       { new: true },
     ).lean();
     if (!doc) {
@@ -203,7 +202,24 @@ export function createKnowledgeRouter(deps: {
       return;
     }
 
-    await BusinessKnowledgeDocument.deleteOne({ _id: doc._id });
+    try {
+      await BusinessKnowledgeDocument.deleteOne({ _id: doc._id });
+    } catch (err) {
+      // The index entry is already gone, so the AI can no longer use this
+      // document — say so (best effort) and ask for a retry, which is safe:
+      // the AI service's DELETE is idempotent.
+      await BusinessKnowledgeDocument.updateOne({ _id: doc._id }, { indexStatus: "pending" }).catch(
+        () => undefined,
+      );
+      logger.error("knowledge document delete failed after index removal", {
+        correlationId,
+        businessId,
+        documentId: String(doc._id),
+        error: err instanceof Error ? err.message : String(err),
+      });
+      res.status(500).json({ error: "knowledge_delete_failed" });
+      return;
+    }
     logger.info("knowledge document deleted", {
       correlationId,
       businessId,

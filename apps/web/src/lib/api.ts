@@ -135,6 +135,11 @@ export interface KnowledgeDocument {
   updatedAt: string;
 }
 
+/**
+ * No `metadata` on purpose: services/api keeps a document's existing metadata
+ * when the body omits it, so dashboard edits never wipe what a seed or
+ * import stored there.
+ */
 export interface KnowledgeDocumentInput {
   type: KnowledgeDocumentType;
   title: string;
@@ -195,13 +200,16 @@ export async function reindexKnowledge(
 /**
  * "index_unavailable" (503): the AI service couldn't forget the document, so
  * services/api kept it rather than leave stale facts retrievable.
+ * "delete_failed" (500): the AI already forgot it but the API couldn't
+ * delete its own copy; it's marked pending and deleting again is safe.
  */
 export async function deleteKnowledge(
   businessId: string,
   documentId: string,
-): Promise<"deleted" | "index_unavailable"> {
+): Promise<"deleted" | "index_unavailable" | "delete_failed"> {
   const response = await fetch(knowledgeUrl(businessId, documentId), { method: "DELETE" });
   if (response.status === 503) return "index_unavailable";
+  if (response.status === 500) return "delete_failed";
   if (!response.ok) throw new Error(`Failed to delete (${response.status})`);
   return "deleted";
 }

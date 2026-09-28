@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { connectMongo, disconnectMongo } from "@ai-lead-recovery/db";
 import {
@@ -76,6 +76,10 @@ describe("knowledge routes", () => {
     garageB = String((await Business.create({ ...base, name: "B" }))._id);
     indexClient = new FakeKnowledgeIndexClient();
     app = buildApp(indexClient);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   afterAll(async () => {
@@ -171,6 +175,34 @@ describe("knowledge routes", () => {
       });
     });
 
+    it("keeps existing metadata when the body doesn't send any (dashboard edits)", async () => {
+      const created = await createDoc();
+      await BusinessKnowledgeDocument.updateOne(
+        { _id: created._id },
+        { metadata: { fixtureKey: "brakes" } },
+      );
+
+      const res = await request(app)
+        .put(`/api/businesses/${garageA}/knowledge/${created._id}`)
+        .send({ ...brakes, content: "החלפת רפידות: 480 ₪" });
+
+      expect(res.body.document).toMatchObject({ version: 2, metadata: { fixtureKey: "brakes" } });
+    });
+
+    it("replaces metadata when the body sends it", async () => {
+      const created = await createDoc();
+      await BusinessKnowledgeDocument.updateOne(
+        { _id: created._id },
+        { metadata: { fixtureKey: "brakes" } },
+      );
+
+      const res = await request(app)
+        .put(`/api/businesses/${garageA}/knowledge/${created._id}`)
+        .send({ ...brakes, metadata: { source: "import" } });
+
+      expect(res.body.document.metadata).toEqual({ source: "import" });
+    });
+
     it("never marks a newer version indexed because an older one was confirmed", async () => {
       const created = await createDoc();
       // While version 2 is being indexed, another edit lands (version 3).
@@ -247,6 +279,30 @@ describe("knowledge routes", () => {
       expect(res.status).toBe(204);
       expect(indexClient.deleted).toEqual([{ businessId: garageA, documentId: created._id }]);
       expect(await BusinessKnowledgeDocument.findById(created._id)).toBeNull();
+    });
+
+    it("reports a Mongo failure after index removal, marks the document pending, and a retry succeeds", async () => {
+      const created = await createDoc();
+      vi.spyOn(BusinessKnowledgeDocument, "deleteOne").mockRejectedValueOnce(
+        new Error("mongo down"),
+      );
+
+      const failed = await request(app).delete(
+        `/api/businesses/${garageA}/knowledge/${created._id}`,
+      );
+
+      expect(failed.status).toBe(500);
+      expect(failed.body.error).toBe("knowledge_delete_failed");
+      expect(await BusinessKnowledgeDocument.findById(created._id).lean()).toMatchObject({
+        indexStatus: "pending",
+      });
+
+      const retried = await request(app).delete(
+        `/api/businesses/${garageA}/knowledge/${created._id}`,
+      );
+      expect(retried.status).toBe(204);
+      expect(await BusinessKnowledgeDocument.findById(created._id)).toBeNull();
+      expect(indexClient.deleted).toHaveLength(2);
     });
 
     it("keeps the document when the index can't be reached, so no stale facts stay retrievable", async () => {
