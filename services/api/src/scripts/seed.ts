@@ -92,6 +92,11 @@ async function seed() {
     console.log(
       `Knowledge for ${garage.key} (${garage.name}): ${knowledge.created} created, ${knowledge.updated} updated, ${knowledge.unchanged} unchanged.`,
     );
+    if (knowledge.orphaned.length > 0) {
+      console.warn(
+        `  No longer in garages.json (kept; delete from the dashboard if unwanted): ${knowledge.orphaned.join(", ")}`,
+      );
+    }
   }
 
   const businessId = await ensureGarageBusiness(target);

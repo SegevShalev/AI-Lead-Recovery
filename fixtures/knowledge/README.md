@@ -15,6 +15,12 @@ Formats are Zod schemas in `packages/shared/src/knowledgeFixtures.ts`;
 ## Rules for editing
 
 - Garages are referenced by `key` (`north`, `south`), never a Mongo id.
+- Every document has a stable `key` (`brakes`, `opening-hours`…), stored as
+  `metadata.fixtureKey`. That's how the seed recognizes it: **change the
+  title freely, never the key** — a new key means a new document. Removing a
+  document from the file does not delete it (that would skip the AI index);
+  the seed prints it as "no longer in garages.json" — delete it from the
+  dashboard.
 - The garages must keep **different prices** for the same service — that's
   what makes a cross-tenant leak visible in a suggestion.
 - An eval question's `expectedDocumentTitles` must match titles in its own
