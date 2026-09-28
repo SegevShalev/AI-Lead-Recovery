@@ -1,4 +1,5 @@
 import { mongoose } from "@ai-lead-recovery/db";
+import { knowledgeDocumentTypeSchema, knowledgeIndexStatusSchema } from "@ai-lead-recovery/shared";
 import type {
   ConversationStatus,
   KnowledgeDocumentType,
@@ -204,16 +205,19 @@ interface BusinessKnowledgeDocumentDoc {
 const businessKnowledgeDocumentSchema = new Schema<BusinessKnowledgeDocumentDoc>(
   {
     businessId: { type: Schema.Types.ObjectId, ref: "Business", required: true },
-    type: {
-      type: String,
-      enum: ["service", "policy", "faq", "style", "example", "other"],
-      required: true,
-    },
+    // Enums come from the shared Zod contract so the two can't drift: a type
+    // the route's validation accepts is always one Mongo accepts too.
+    type: { type: String, enum: knowledgeDocumentTypeSchema.options, required: true },
     title: { type: String, required: true },
     content: { type: String, required: true },
     metadata: { type: Schema.Types.Mixed },
     version: { type: Number, required: true, min: 1, default: 1 },
-    indexStatus: { type: String, enum: ["indexed", "pending"], required: true, default: "pending" },
+    indexStatus: {
+      type: String,
+      enum: knowledgeIndexStatusSchema.options,
+      required: true,
+      default: "pending",
+    },
   },
   { timestamps: true },
 );

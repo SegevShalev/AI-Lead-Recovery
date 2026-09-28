@@ -82,7 +82,7 @@ export const indexDocumentRequestSchema = z.object({
 // DELETE /internal/knowledge/:businessId/:documentId → 204
 ```
 
-**Proposed by Erez — Segev to confirm:**
+**Decided 2026-09-23 (Erez; Segev informed):**
 
 - **Out-of-order indexing:** if the AI service receives a `version` _older_
   than the one it already holds for that `documentId`, it ignores it and
