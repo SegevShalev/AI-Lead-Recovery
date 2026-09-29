@@ -25,29 +25,43 @@ export interface GenerationInput {
   knowledge: KnowledgeSnippet[];
 }
 
+/** Tokens one model call used - what it cost. Provider-neutral names. */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 /**
  * Thrown by a provider on any call failure. `retryable` drives whether the
  * generator retries the same provider or moves straight to the fallback -
- * e.g. a timeout is worth retrying, bad auth is not.
+ * e.g. a timeout is worth retrying, bad auth is not. `usage` is set when the
+ * call itself went through and was paid for (e.g. the reply wasn't JSON).
  */
 export class ProviderCallError extends Error {
   constructor(
     message: string,
     public readonly code: SuggestionErrorCode,
     public readonly retryable: boolean,
+    public readonly usage?: TokenUsage,
   ) {
     super(message);
     this.name = "ProviderCallError";
   }
 }
 
+export interface ProviderResponse {
+  /** Raw, not-yet-validated model output. */
+  output: unknown;
+  /** Absent when the provider doesn't bill by token (the mock). */
+  usage?: TokenUsage;
+}
+
 export interface SuggestionProvider {
   /** Identifies which model actually produced a result, per the contract's `model` field. */
   readonly name: string;
   /**
-   * Returns the raw, not-yet-validated model output. The generator is solely
-   * responsible for schema validation - a provider must never leak SDK types
-   * past this boundary.
+   * The generator is solely responsible for validating `output` - a provider
+   * must never leak SDK types past this boundary.
    */
-  generate(input: GenerationInput): Promise<unknown>;
+  generate(input: GenerationInput): Promise<ProviderResponse>;
 }

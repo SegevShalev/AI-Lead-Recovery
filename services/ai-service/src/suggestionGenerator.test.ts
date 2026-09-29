@@ -9,7 +9,12 @@ import { describe, expect, it } from "vitest";
 import type { Retriever } from "./knowledge/retriever.js";
 import type { ChunkHit } from "./knowledge/vectorStore.js";
 import { MockSuggestionProvider } from "./providers/mock.js";
-import type { GenerationInput, SuggestionProvider } from "./providers/types.js";
+import type {
+  GenerationInput,
+  ProviderResponse,
+  SuggestionProvider,
+  TokenUsage,
+} from "./providers/types.js";
 import { ProviderCallError } from "./providers/types.js";
 import { SuggestionGenerator } from "./suggestionGenerator.js";
 
@@ -35,14 +40,16 @@ class ScriptedProvider implements SuggestionProvider {
   constructor(
     readonly name: string,
     private readonly script: (() => unknown)[],
+    /** Reported on every call that returns, like a billed model. */
+    private readonly usage?: TokenUsage,
   ) {}
 
-  async generate(_input: GenerationInput): Promise<unknown> {
+  async generate(_input: GenerationInput): Promise<ProviderResponse> {
     this.callCount += 1;
     const index = Math.min(this.callCount, this.script.length) - 1;
     const step = this.script[index];
     if (!step) throw new Error(`ScriptedProvider has no step at index ${index}`);
-    return step();
+    return { output: step(), ...(this.usage ? { usage: this.usage } : {}) };
   }
 }
 
@@ -213,7 +220,7 @@ describe("SuggestionGenerator", () => {
         name: "recording",
         generate: async (input) => {
           seen.push(input);
-          return { message: "היי דנה", reason: "ok" };
+          return { output: { message: "היי דנה", reason: "ok" } };
         },
       };
       const generator = new SuggestionGenerator(
@@ -278,6 +285,45 @@ describe("SuggestionGenerator", () => {
 
       expect(provider.callCount).toBe(3);
       expect(result).toEqual({ status: "degraded", errorCode: "invalid_output" });
+    });
+
+    it("traces every attempt: rejections, summed tokens, documents shown", async () => {
+      const usage = { inputTokens: 100, outputTokens: 20 };
+      const provider = new ScriptedProvider(
+        "primary",
+        [reply("רק 400 ₪!"), () => ({ message: 42 }), reply("רפידות: 450 ₪")],
+        usage,
+      );
+      const generator = new SuggestionGenerator(provider, undefined, silentLogger, brakesRetriever);
+
+      const { response, trace } = await generator.generateWithTrace(baseRequest);
+
+      expect(response.status).toBe("ok");
+      expect(trace).toEqual({
+        attempts: 3,
+        groundingRejections: 1,
+        inputTokens: 300,
+        outputTokens: 60,
+        retrievalStatus: "empty",
+        knowledgeChunks: 1,
+        knowledgeDocumentIds: ["doc-brakes"],
+      });
+    });
+
+    it("counts tokens of a billed call whose reply was unusable", async () => {
+      const billedButBroken = new ProviderCallError("not JSON", "invalid_output", true, {
+        inputTokens: 100,
+        outputTokens: 5,
+      });
+      const provider = new ScriptedProvider("primary", [
+        throwing(billedButBroken),
+        reply("היי דנה"),
+      ]);
+      const generator = new SuggestionGenerator(provider, undefined, silentLogger, noKnowledge);
+
+      const { trace } = await generator.generateWithTrace(baseRequest);
+
+      expect(trace).toMatchObject({ attempts: 2, inputTokens: 100, outputTokens: 5 });
     });
 
     it("never lets the internal estimated value through as a price", async () => {

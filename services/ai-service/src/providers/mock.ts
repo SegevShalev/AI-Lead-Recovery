@@ -1,4 +1,4 @@
-import type { GenerationInput, SuggestionProvider } from "./types.js";
+import type { GenerationInput, ProviderResponse, SuggestionProvider } from "./types.js";
 import { ProviderCallError } from "./types.js";
 
 /**
@@ -27,7 +27,7 @@ export class MockSuggestionProvider implements SuggestionProvider {
     this.name = options.name ?? "mock";
   }
 
-  async generate(input: GenerationInput): Promise<unknown> {
+  async generate(input: GenerationInput): Promise<ProviderResponse> {
     switch (this.options.failureMode) {
       case "provider_timeout":
         throw new ProviderCallError("mock provider timed out", "provider_timeout", true);
@@ -38,15 +38,17 @@ export class MockSuggestionProvider implements SuggestionProvider {
       case "invalid_output":
         // Deliberately malformed - wrong type, missing `reason` - so the
         // generator's schema validation (not this provider) is what fails it.
-        return { message: 42 };
+        return { output: { message: 42 } };
       default:
         break;
     }
 
     const opener = CASE_TYPE_OPENERS[input.caseType] ?? "רציתי לחזור אליך";
     return {
-      message: `היי ${input.customer.displayName}, ${opener}. נשמח לעזור בכל שאלה שיש לך.`,
-      reason: `Deterministic mock suggestion for case type "${input.caseType}"`,
+      output: {
+        message: `היי ${input.customer.displayName}, ${opener}. נשמח לעזור בכל שאלה שיש לך.`,
+        reason: `Deterministic mock suggestion for case type "${input.caseType}"`,
+      },
     };
   }
 }

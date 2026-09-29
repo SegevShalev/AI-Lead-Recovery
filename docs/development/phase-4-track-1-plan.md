@@ -10,18 +10,29 @@ Small stages on one branch, `feature/rag-retrieval-pipeline` (from `dev`).
 Every stage ends with a commit that leaves everything green and runnable. If
 I stop after any stage, nothing is broken and nothing is half-wired.
 
-| #   | Stage                          | Needs                 | Done when                                                     |
-| --- | ------------------------------ | --------------------- | ------------------------------------------------------------- |
-| 0   | Playground ✅                  | —                     | I can explain embeddings, cosine, top-k, threshold, isolation |
-| 1   | Qdrant container + config ✅   | —                     | dashboard at `localhost:6333/dashboard`, env tests pass       |
-| 2   | Chunker ✅                     | —                     | pure function, Hebrew unit tests                              |
-| 3   | Embedder (mock + OpenAI) ✅    | —                     | mock is deterministic; OpenAI tested with stubbed `fetch`     |
-| 4   | Vector store ✅                | 1, 3                  | isolation + idempotency tests pass (in-memory and Qdrant)     |
-| 5   | Index + delete API ✅          | 2, 3, 4               | Erez's CRUD indexes into real Qdrant                          |
-| 6   | Retriever (reported) ✅        | 5                     | every suggestion returns real `retrieval` info                |
-| 7   | Retrieval eval + tuning 🟡     | 6, Erez's #10         | hit-rate table; `k` and `minScore` chosen from numbers        |
-| 8   | Prompt v2 + grounding check ✅ | 6 (7 for real tuning) | invented prices rejected, injected text not followed          |
-| 9   | Three-way comparison → **PR**  | 7, 8                  | no-knowledge vs all-knowledge vs RAG table in the PR          |
+| #   | Stage                            | Needs                 | Done when                                                     |
+| --- | -------------------------------- | --------------------- | ------------------------------------------------------------- |
+| 0   | Playground ✅                    | —                     | I can explain embeddings, cosine, top-k, threshold, isolation |
+| 1   | Qdrant container + config ✅     | —                     | dashboard at `localhost:6333/dashboard`, env tests pass       |
+| 2   | Chunker ✅                       | —                     | pure function, Hebrew unit tests                              |
+| 3   | Embedder (mock + OpenAI) ✅      | —                     | mock is deterministic; OpenAI tested with stubbed `fetch`     |
+| 4   | Vector store ✅                  | 1, 3                  | isolation + idempotency tests pass (in-memory and Qdrant)     |
+| 5   | Index + delete API ✅            | 2, 3, 4               | Erez's CRUD indexes into real Qdrant                          |
+| 6   | Retriever (reported) ✅          | 5                     | every suggestion returns real `retrieval` info                |
+| 7   | Retrieval eval + tuning 🟡       | 6, Erez's #10         | hit-rate table; `k` and `minScore` chosen from numbers        |
+| 8   | Prompt v2 + grounding check ✅   | 6 (7 for real tuning) | invented prices rejected, injected text not followed          |
+| 9   | Three-way comparison 🟡 → **PR** | 7, 8                  | no-knowledge vs all-knowledge vs RAG table in the PR          |
+
+> **⏳ Waiting on keys (as of 2026-09-30).** All code for Stages 7–9 is built
+> and tested. What's left is **real runs only**:
+>
+> | Needs                                                           | Unblocks                                                      |
+> | --------------------------------------------------------------- | ------------------------------------------------------------- |
+> | OpenAI `EMBEDDING_API_KEY` (upgrade blocked by OpenAI's outage) | Stage 7 tuning, then Stage 9's rag row                        |
+> | Anthropic `AI_API_KEY`                                          | Stage 9's no-knowledge and all-knowledge rows (can run first) |
+>
+> When the keys arrive: **Stage 7 → Stage 9 → #12 ready for review.** Each
+> stage below has a "To finish" list.
 
 ```
 Build the parts          Store them            Use them                 Prove it
@@ -371,8 +382,9 @@ English reason dilutes the query.
 here is two setting values and one yes/no on the query, not code design,
 and with `AI_PROVIDER=mock` no real message is generated in the meantime.
 Until then, the defaults stay at the placeholders (`5` / `0.2`). **This
-stage must be finished before Stage 9**, which needs the OpenAI key anyway,
-and before #12 is marked ready. To finish:
+stage must be finished before Stage 9's real run** (its runner is already
+built; its rag row needs the tuned settings) and before #12 is marked ready.
+To finish:
 
 1. Set `EMBEDDING_PROVIDER=openai` + `EMBEDDING_API_KEY` in `.env`.
 2. `pnpm --filter @ai-lead-recovery/ai-service eval:retrieval`.
@@ -463,6 +475,66 @@ Stage 9, together with the Stage 7 tuning.
 
 **Done when:** the results table is in the PR. If "all knowledge" wins at our
 size, that's a valid result. Record it and why.
+
+**Filled in while building** (decided 2026-09-30):
+
+- **Modes are just retrievers.** Each mode is a different `Retriever` in front
+  of the same production `SuggestionGenerator`, so all three use the same
+  prompt v2, retries and grounding check. Only the knowledge differs.
+  "All knowledge" chunks the fixtures itself and needs no embedder.
+- **"Correct facts":** the eval questions name the right document, not the
+  right answer. So the checkable part is the **numbers in the right
+  document**. `answered` = the message states at least one of them.
+  Questions whose document has no numbers (north's "by appointment only")
+  aren't scored. `--messages` prints every reply for reading. north-friday's
+  correct answer ("closed") has no number either, so it scores as not
+  answered in every mode.
+- **"Invented facts":** grounding is on, so an invented number never reaches
+  the final message; it becomes a retry, or a degraded suggestion. So the
+  table reports **grounding rejects** (how often the model tried) and
+  **degraded**. It also reports **other numbers**: grounded numbers from the
+  _wrong_ document, which is the real risk of "all knowledge" (a correct
+  price, for the wrong question).
+- **"Prompt tokens":** providers now return token usage (Anthropic sends it
+  with every reply). `SuggestionGenerator.generateWithTrace` sums it over
+  every attempt, because every attempt is billed. It also counts grounding
+  rejects and records which documents the model saw. `generate()` and
+  the HTTP contract are unchanged. The `suggestion generated` log now also
+  includes `inputTokens` / `outputTokens`, a start on Phase 5 cost tracking.
+- Primary model only (no fallback), so every row is one model's work.
+- The eval request's `estimatedValue` is 500, a number that appears in no
+  fixture, so quoting it is caught.
+- **Cost gate:** the runner prints an estimate (rough: 2 chars per token) and
+  sends nothing to a paid model without `--yes`. With `claude-opus-5`:
+  about $0.60 typical, about $5 worst case (every attempt retried at max
+  output).
+- The summary prints as a Markdown table, ready to paste into #12.
+
+**Status:** 🟡 partly done. The runner is built and tested (fake models
+and the mock AI). **The real run is waiting for keys:**
+
+- `AI_API_KEY` (Anthropic) for modes 1 and 2. It doesn't depend on
+  OpenAI, so these two rows can run before the OpenAI key arrives.
+- the OpenAI key **and Stage 7 finished** for the rag row. Running
+  it on the mock embedder gives a row that means nothing.
+
+To finish:
+
+1. Finish Stage 7 (tuned `RETRIEVAL_*`, OpenAI embedder).
+2. `.env`: `AI_PROVIDER=anthropic`, `AI_API_KEY=…`, `EMBEDDING_PROVIDER=openai`.
+3. **Check before paying:** [providers/anthropic.ts](../../services/ai-service/src/providers/anthropic.ts)
+   sends `max_tokens: 1024` with a 20 s timeout. On `claude-opus-5` thinking is
+   on by default and its tokens count toward `max_tokens`, so replies may be cut
+   off (non-JSON, then retried) or time out. Do one real suggestion
+   first. If it degrades, fix this (e.g. raise `max_tokens`, or set a
+   low `effort`) as its own small change, since it's production config too.
+4. `pnpm --filter @ai-lead-recovery/ai-service eval:compare` (dry: prints the
+   estimate, sends nothing), then the same command with `--yes --messages`.
+5. Paste the table and a short conclusion here and into #12's description.
+   If "all knowledge" wins at our size, say so and why.
+6. Mark #12 ready for Erez's review.
+
+**Results:** _pending_
 
 **Commit:** `feat(ai-service): add three-way knowledge comparison`
 **Then:** update the #12 description with the results table and mark it

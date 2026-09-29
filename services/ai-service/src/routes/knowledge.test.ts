@@ -251,13 +251,13 @@ describe("POST /internal/suggestions with indexed knowledge", () => {
         const { user } = buildHebrewFollowupPrompt(input);
         const knowledge = user.slice(user.indexOf("<business_knowledge>"));
         const price = knowledge.match(/(\d+) ₪/)?.[1];
-        return { message: `רפידות קדמיות: ${price ?? "?"} ₪`, reason: "quoted" };
+        return { output: { message: `רפידות קדמיות: ${price ?? "?"} ₪`, reason: "quoted" } };
       },
     };
     // Stands in for a model that "remembers" north's price whatever it was shown.
     const alwaysNorthPrice: SuggestionProvider = {
       name: "always-450",
-      generate: async () => ({ message: "רפידות קדמיות: 450 ₪", reason: "leaked" }),
+      generate: async () => ({ output: { message: "רפידות קדמיות: 450 ₪", reason: "leaked" } }),
     };
     const brakesQuestion = suggestionFor("garage-south", "כמה עולה להחליף רפידות בלמים?");
 

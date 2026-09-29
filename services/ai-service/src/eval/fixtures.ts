@@ -6,6 +6,8 @@ import {
   type GaragesFixture,
   garagesFixtureSchema,
   type IndexDocumentRequest,
+  type Logger,
+  type SuggestionRequest,
 } from "@ai-lead-recovery/shared";
 
 /** Repo-level fixtures shared with services/api's seed - see fixtures/knowledge/README.md. */
@@ -95,3 +97,31 @@ export function resolveEvalCases({ garages, questions }: KnowledgeFixtures): Eva
     };
   });
 }
+
+/** Same text the Recovery Worker writes (services/recovery-worker/src/rules/unanswered.ts). */
+export const EVAL_CASE_REASON = "no reply within 60 minutes";
+
+/**
+ * Found in no fixture document, so a model that quotes the internal estimate
+ * as a price is caught by the grounding check rather than looking correct.
+ */
+const EVAL_ESTIMATED_VALUE = 500;
+
+/** An unanswered case whose only customer message is the eval question. */
+export function evalRequest(evalCase: EvalCase, reason: string): SuggestionRequest {
+  return {
+    recoveryCaseId: `eval-${evalCase.id}`,
+    businessId: evalCase.businessId,
+    caseType: "unanswered",
+    reason,
+    estimatedValue: EVAL_ESTIMATED_VALUE,
+    customer: { displayName: "דנה", phone: "+972500000000" },
+    conversationContext: [
+      { direction: "inbound", text: evalCase.question, occurredAt: "2026-09-01T10:00:00.000Z" },
+    ],
+    correlationId: `eval-${evalCase.id}`,
+  };
+}
+
+/** Evals print their own report; the service's per-call logs would bury it. */
+export const silentLogger: Logger = { info() {}, warn() {}, error() {} };

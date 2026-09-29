@@ -86,6 +86,28 @@ businesses. Re-running replaces the same points. It fails fast with the
 "delete the collection" message if the collection was made for another
 embedder (below).
 
+### Three-way comparison (Phase 4 exit evidence)
+
+```bash
+pnpm --filter @ai-lead-recovery/ai-service eval:compare                    # estimate only
+pnpm --filter @ai-lead-recovery/ai-service eval:compare --yes --messages   # run it
+```
+
+Runs every eval question through the production generator (prompt v2,
+retries, grounding) in three modes: **no knowledge**, **all knowledge** (every
+chunk of the garage in the prompt) and **rag**. It prints a Markdown table
+(right document shown, answered, facts stated, numbers from a wrong
+document, grounding rejects, degraded, tokens per question, cost) and a
+per-question breakdown. `--messages` also prints every reply.
+
+- Needs `AI_PROVIDER=anthropic` + `AI_API_KEY`. With the mock AI, all three rows
+  are the same, because the mock ignores knowledge. The rag row also needs
+  `EMBEDDING_PROVIDER=openai` and the Stage 7 settings. The runner warns about
+  both.
+- Nothing is sent to a paid model without `--yes`. The estimate comes first:
+  about $0.60 typical and about $5 worst case on `claude-opus-5`.
+- Primary model only, no fallback, so every row is one model's work.
+
 ### Switching the embedding provider
 
 > ⚠️ Applies whenever `EMBEDDING_PROVIDER` changes between `mock` and `openai`.

@@ -1,13 +1,15 @@
-import type { Logger, SuggestionRequest } from "@ai-lead-recovery/shared";
 import type { Embedder } from "../knowledge/embedder.js";
 import { InMemoryVectorStore } from "../knowledge/inMemoryVectorStore.js";
 import { KnowledgeIndexer } from "../knowledge/knowledgeIndexer.js";
 import { KnowledgeRetriever } from "../knowledge/retriever.js";
 import {
+  EVAL_CASE_REASON,
   type EvalCase,
+  evalRequest,
   fixtureIndexRequests,
   type KnowledgeFixtures,
   resolveEvalCases,
+  silentLogger,
 } from "./fixtures.js";
 
 /**
@@ -15,9 +17,6 @@ import {
  * the most the eval ever needs to rank.
  */
 export const MAX_TOP_K = 5;
-
-/** Same text the Recovery Worker writes (services/recovery-worker/src/rules/unanswered.ts). */
-const EVAL_CASE_REASON = "no reply within 60 minutes";
 
 /**
  * Query experiment (plan Stage 7): the case reason is an English system
@@ -173,8 +172,6 @@ export function recommend(rows: readonly SweepRow[]): Recommendation {
   };
 }
 
-const silentLogger: Logger = { info() {}, warn() {}, error() {} };
-
 /**
  * Indexes the fixture garages into a throwaway in-memory store through the
  * production indexer (same chunker, same embedder), then asks every question
@@ -218,20 +215,4 @@ export async function runRetrievalEval(
     });
   }
   return runs;
-}
-
-/** An unanswered case whose only customer message is the eval question. */
-function evalRequest(evalCase: EvalCase, reason: string): SuggestionRequest {
-  return {
-    recoveryCaseId: `eval-${evalCase.id}`,
-    businessId: evalCase.businessId,
-    caseType: "unanswered",
-    reason,
-    estimatedValue: 0,
-    customer: { displayName: "eval", phone: "+972500000000" },
-    conversationContext: [
-      { direction: "inbound", text: evalCase.question, occurredAt: "2026-09-01T10:00:00.000Z" },
-    ],
-    correlationId: `eval-${evalCase.id}`,
-  };
 }

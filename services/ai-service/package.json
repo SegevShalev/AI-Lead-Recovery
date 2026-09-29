@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "eval:retrieval": "tsx --env-file=../../.env src/scripts/evalRetrieval.ts",
-    "index:fixtures": "tsx --env-file=../../.env src/scripts/indexFixtures.ts"
+    "index:fixtures": "tsx --env-file=../../.env src/scripts/indexFixtures.ts",
+    "eval:compare": "tsx --env-file=../../.env src/scripts/evalCompare.ts"
   },
   "dependencies": {
     "@ai-lead-recovery/config": "workspace:*",
