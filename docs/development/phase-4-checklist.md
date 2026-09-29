@@ -16,8 +16,8 @@ to end on 2026-09-22, so Phase 4 starts from a known-good failure path.
 
 Current state: the contract below is in `packages/shared` and the AI service
 already returns `retrieval: { status: "empty", ... }` on every suggestion, so
-both tracks build against real types from day one. No
-`BusinessKnowledgeDocument` model in `services/api` yet, and
+both tracks build against real types from day one. The
+`BusinessKnowledgeDocument` model exists in `services/api` (no routes yet);
 `services/ai-service` has no storage at all yet — retrieval needs one.
 
 ## Decisions — agreed by Erez and Segev
@@ -82,6 +82,22 @@ export const indexDocumentRequestSchema = z.object({
 // DELETE /internal/knowledge/:businessId/:documentId → 204
 ```
 
+**Decided 2026-09-23 (Erez; Segev informed):**
+
+- **Out-of-order indexing:** if the AI service receives a `version` _older_
+  than the one it already holds for that `documentId`, it ignores it and
+  returns 200 (no-op). Newest version always wins, whatever order the calls
+  arrive in (e.g. a manual reindex racing a fresh edit).
+- **Eval set owner + location:** Erez writes it alongside the seed data (the
+  person who writes the facts writes the questions), at
+  [`fixtures/knowledge/`](../../fixtures/knowledge/README.md) — repo root,
+  not inside ai-service, because the API seed and the eval runner read the
+  same garages file. Each question: `id`, `garage` (fixture key like
+  `north`, not a Mongo id), `question`, `expectedDocumentTitles` (empty
+  array = the correct answer is "nothing").
+- **OpenAI key:** Segev creates one for the real embedder; `EMBEDDING_*`
+  entries land in `.env.example` with that adapter. Mock stays the default.
+
 **Suggestion response** — `suggestionResultSchema` gains:
 
 ```ts
@@ -145,20 +161,29 @@ Doesn't touch `services/api` or `apps/web`.
 Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 1's mock embedder from day one.
 
-- [ ] **`BusinessKnowledgeDocument` model** in `services/api` per
+- [x] **`BusinessKnowledgeDocument` model** in `services/api` per
       [data-model.md](../architecture/data-model.md#businessknowledgedocument)
       (index `{businessId, type, version}`), plus Zod schema in shared.
-- [ ] **CRUD routes** `/api/businesses/:businessId/knowledge` — every write
+- [x] **CRUD routes** `/api/businesses/:businessId/knowledge` — every write
       bumps `version` and calls `/internal/knowledge/index` (or `DELETE`).
       If the AI service is down: save the document anyway, mark it
       `indexStatus: "pending"`, and expose a "reindex" action — don't lose the
-      owner's edit.
-- [ ] **Seed data** — Hebrew garage knowledge for _two_ businesses
-      (price list, hours, warranty policy) in `services/api/src/scripts/seed.ts`,
-      with deliberately different prices so a leak is obvious.
-- [ ] **Persist retrieval metadata** — `Suggestion.retrievalContextVersion` +
-      source ids from the new `retrieval` field.
-- [ ] **Dashboard** — a simple knowledge page (list/add/edit/delete) and, in
+      owner's edit. **Delete is the exception:** it removes from the index
+      first and keeps the document (503) if it can't, so a deleted price can't
+      stay retrievable. If the index delete succeeds but Mongo's then fails, the
+      document is marked pending and the owner gets 500 — retrying is safe.
+      DELETE of a document the AI service never indexed
+      should still return 204 (idempotent) — Track 1, please match.
+- [x] **Seed data** — Hebrew garage knowledge for _two_ businesses
+      (price list, hours, warranty policy), with deliberately different
+      prices so a leak is obvious. Data in
+      [`fixtures/knowledge/garages.json`](../../fixtures/knowledge/README.md),
+      loaded idempotently by `services/api/src/scripts/seed.ts`
+      (`seed south` targets the second garage's conversation).
+- [x] **Persist retrieval metadata** — `Suggestion.retrievalContextVersion` +
+      source ids from the new `retrieval` field (plus `retrievalStatus`). The
+      API response adds `knowledgeDocuments` (titles, same business only).
+- [x] **Dashboard** — a simple knowledge page (list/add/edit/delete) and, in
       the Recover flow, a "based on:" line showing which documents the
       suggestion used (or "no business knowledge used").
 
@@ -176,7 +201,9 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 - [ ] **Degrade seam** — stop the embedding provider (bad key); suggestion
       still comes back, marked `retrieval.status: "failed"`, dashboard says
       no knowledge was used.
-- [ ] **Eval set (build early, reuse on every change)** — a fixed list of
+- [ ] **Eval set (build early, reuse on every change)** — questions written
+      in [`fixtures/knowledge/eval-questions.json`](../../fixtures/knowledge/eval-questions.json)
+      (18, Erez); still needs the runner (Segev) to score it. A fixed list of
       10–20 customer questions against the seeded garages, each labelled with
       the knowledge chunk that _should_ come back (and some with no correct
       chunk, to check we return nothing rather than noise). Checked into the

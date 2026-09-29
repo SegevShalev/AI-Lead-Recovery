@@ -7,7 +7,7 @@ import {
   type ApiSuggestionResponse,
   type MessageDirection,
 } from "@ai-lead-recovery/shared";
-import { Message, RecoveryCase, Suggestion } from "../db/models.js";
+import { BusinessKnowledgeDocument, Message, RecoveryCase, Suggestion } from "../db/models.js";
 import type { SuggestionClient } from "../aiServiceClient.js";
 
 const logger = createLogger("api");
@@ -41,6 +41,28 @@ export function selectConversationContext(
     text: m.text,
     occurredAt: m.occurredAt.toISOString(),
   }));
+}
+
+/**
+ * Titles for the documents a suggestion was grounded on, looked up in the
+ * API's own collection. Scoped by businessId: an id the AI service returned
+ * for another business (which would be a retrieval bug) is dropped, never
+ * shown. Deleted documents are dropped too; order follows first appearance.
+ */
+export async function resolveKnowledgeDocuments(
+  businessId: mongoose.Types.ObjectId,
+  documentIds: string[],
+): Promise<{ documentId: string; title: string }[]> {
+  const uniqueIds = [...new Set(documentIds)].filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (uniqueIds.length === 0) return [];
+  const docs = await BusinessKnowledgeDocument.find({ _id: { $in: uniqueIds }, businessId })
+    .select("title")
+    .lean();
+  const titleById = new Map(docs.map((doc) => [String(doc._id), doc.title]));
+  return uniqueIds.flatMap((id) => {
+    const title = titleById.get(id);
+    return title === undefined ? [] : [{ documentId: id, title }];
+  });
 }
 
 type PopulatedCustomer = { _id: mongoose.Types.ObjectId; displayName: string; phone: string };
@@ -122,6 +144,9 @@ export function createSuggestionRouter(deps: { suggestionClient: SuggestionClien
       reasoningSummary: result.data.reason,
       model: result.data.model,
       promptVersion: result.data.promptVersion,
+      retrievalStatus: result.data.retrieval.status,
+      retrievalContextVersion: result.data.retrieval.contextVersion,
+      retrievalSources: result.data.retrieval.sources,
     });
     await RecoveryCase.updateOne(
       { _id: recoveryCase._id },
@@ -133,9 +158,18 @@ export function createSuggestionRouter(deps: { suggestionClient: SuggestionClien
       suggestionId: String(suggestion._id),
       model: result.data.model,
       promptVersion: result.data.promptVersion,
+      retrievalStatus: result.data.retrieval.status,
+      retrievalSourceCount: result.data.retrieval.sources.length,
     });
 
-    const body: ApiSuggestionResponse = { ...result.data, suggestionId: String(suggestion._id) };
+    const body: ApiSuggestionResponse = {
+      ...result.data,
+      suggestionId: String(suggestion._id),
+      knowledgeDocuments: await resolveKnowledgeDocuments(
+        recoveryCase.businessId,
+        result.data.retrieval.sources.map((source) => source.documentId),
+      ),
+    };
     res.json(body);
   });
 

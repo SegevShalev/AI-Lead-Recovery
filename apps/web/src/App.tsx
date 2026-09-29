@@ -6,7 +6,8 @@ import { LeadDrawer } from "./components/LeadDrawer.js";
 import { LeadTable } from "./components/LeadTable.js";
 import { ErrorPage } from "./components/ErrorPage.js";
 import { Toast } from "./components/Toast.js";
-import { TopBar } from "./components/TopBar.js";
+import { KnowledgePage } from "./components/KnowledgePage.js";
+import { TopBar, type View } from "./components/TopBar.js";
 import { BUSINESS_NAME, REPLY_RATE_LABEL, SYNCED_AGO_LABEL, type Lead } from "./data/leads.js";
 import {
   bucketSummaries,
@@ -20,6 +21,7 @@ import {
 } from "./lib/dashboard.js";
 import { formatMoney } from "./lib/format.js";
 import { fetchDemoBusiness, fetchOpenLeads, requestSuggestion } from "./lib/api.js";
+import { knowledgeBasis, type KnowledgeBasis } from "./lib/knowledge.js";
 
 const SUGGESTION_ERROR_MESSAGE: Record<string, string> = {
   provider_timeout: "The AI service timed out — try again.",
@@ -34,6 +36,8 @@ const SEND_CLOSE_DELAY_MS = 650;
 export function App() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [businessName, setBusinessName] = useState(BUSINESS_NAME);
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [view, setView] = useState<View>("recovery");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -44,6 +48,8 @@ export function App() {
   const [draft, setDraft] = useState("");
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+  // Per lead, like the cached draft, so reopening a lead still shows what its draft was based on.
+  const [bases, setBases] = useState<Record<string, KnowledgeBasis>>({});
   const [sent, setSent] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [toast, setToast] = useState<string | null>(null);
@@ -68,6 +74,7 @@ export function App() {
       if (activeSuggestionLeadId.current !== leadId) return;
       if (outcome.status === "ok") {
         updateLeadDraft(leadId, outcome.message);
+        setBases((prev) => ({ ...prev, [leadId]: knowledgeBasis(outcome) }));
       } else {
         setDraftError(
           SUGGESTION_ERROR_MESSAGE[outcome.errorCode] ??
@@ -97,6 +104,7 @@ export function App() {
         const openCases = await fetchOpenLeads(business._id);
         if (!cancelled) {
           setBusinessName(business.name);
+          setBusinessId(business._id);
           setLeads(openCases);
         }
       } catch (error) {
@@ -188,9 +196,30 @@ export function App() {
   const recoveredTotal = recoveredThisMonth(leads, status);
   const topFive = topFiveValue(leads, status);
 
+  const topBar = (
+    <TopBar
+      businessName={businessName}
+      syncedAgo={SYNCED_AGO_LABEL}
+      view={view}
+      onViewChange={setView}
+    />
+  );
+
+  if (view === "knowledge" && businessId) {
+    return (
+      <div className="app-shell">
+        {topBar}
+        <div className="page">
+          <KnowledgePage businessId={businessId} />
+        </div>
+        {toast ? <Toast message={toast} /> : null}
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
-      <TopBar businessName={businessName} syncedAgo={SYNCED_AGO_LABEL} />
+      {topBar}
 
       <div className="page">
         <Hero
@@ -228,6 +257,7 @@ export function App() {
           draft={draft}
           draftLoading={draftLoading}
           draftError={draftError}
+          basis={draftError ? null : (bases[selectedLead.id] ?? null)}
           sent={sent}
           onClose={closeDrawer}
           onEditDraft={(value) => updateLeadDraft(selectedLead.id, value)}

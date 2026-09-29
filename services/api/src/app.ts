@@ -1,7 +1,9 @@
 import express, { type Express } from "express";
 import type { SuggestionClient } from "./aiServiceClient.js";
+import type { KnowledgeIndexClient } from "./knowledgeIndexClient.js";
 import { createBusinessesRouter } from "./routes/businesses.js";
 import { createDashboardRouter, type DashboardCacheClient } from "./routes/dashboard.js";
+import { createKnowledgeRouter } from "./routes/knowledge.js";
 import { createRecoveryCasesRouter } from "./routes/recoveryCases.js";
 import { createSuggestionRouter } from "./routes/suggestions.js";
 import { createWebhooksRouter, type EventPublisher } from "./routes/webhooks.js";
@@ -10,6 +12,7 @@ export interface AppDeps {
   queue: EventPublisher;
   cache: DashboardCacheClient;
   suggestionClient: SuggestionClient;
+  knowledgeIndexClient: KnowledgeIndexClient;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -25,6 +28,7 @@ export function createApp(deps: AppDeps): Express {
   app.use(createDashboardRouter({ cache: deps.cache }));
   app.use(createRecoveryCasesRouter());
   app.use(createSuggestionRouter({ suggestionClient: deps.suggestionClient }));
+  app.use(createKnowledgeRouter({ knowledgeIndexClient: deps.knowledgeIndexClient }));
 
   return app;
 }

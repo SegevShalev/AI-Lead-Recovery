@@ -73,6 +73,10 @@ export type SuggestionResponse = z.infer<typeof suggestionResponseSchema>;
  */
 export const apiSuggestionResultSchema = suggestionResultSchema.extend({
   suggestionId: z.string(),
+  // retrieval.sources resolved to the API's own documents (deduped, still
+  // existing, same business) so apps/web can say "based on: ..." without
+  // knowing about chunks.
+  knowledgeDocuments: z.array(z.object({ documentId: z.string(), title: z.string() })),
 });
 export type ApiSuggestionResult = z.infer<typeof apiSuggestionResultSchema>;
 
