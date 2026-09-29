@@ -10,18 +10,18 @@ Small stages on one branch, `feature/rag-retrieval-pipeline` (from `dev`).
 Every stage ends with a commit that leaves everything green and runnable. If
 I stop after any stage, nothing is broken and nothing is half-wired.
 
-| #   | Stage                         | Needs         | Done when                                                     |
-| --- | ----------------------------- | ------------- | ------------------------------------------------------------- |
-| 0   | Playground ✅                 | —             | I can explain embeddings, cosine, top-k, threshold, isolation |
-| 1   | Qdrant container + config ✅  | —             | dashboard at `localhost:6333/dashboard`, env tests pass       |
-| 2   | Chunker ✅                    | —             | pure function, Hebrew unit tests                              |
-| 3   | Embedder (mock + OpenAI) ✅   | —             | mock is deterministic; OpenAI tested with stubbed `fetch`     |
-| 4   | Vector store ✅               | 1, 3          | isolation + idempotency tests pass (in-memory and Qdrant)     |
-| 5   | Index + delete API ✅         | 2, 3, 4       | Erez's CRUD indexes into real Qdrant                          |
-| 6   | Retriever (reported) ✅       | 5             | every suggestion returns real `retrieval` info                |
-| 7   | Retrieval eval + tuning       | 6, Erez's #10 | hit-rate table; `k` and `minScore` chosen from numbers        |
-| 8   | Prompt v2 + grounding check   | 7             | invented prices rejected, injected text not followed          |
-| 9   | Three-way comparison → **PR** | 8             | no-knowledge vs all-knowledge vs RAG table in the PR          |
+| #   | Stage                         | Needs                 | Done when                                                     |
+| --- | ----------------------------- | --------------------- | ------------------------------------------------------------- |
+| 0   | Playground ✅                 | —                     | I can explain embeddings, cosine, top-k, threshold, isolation |
+| 1   | Qdrant container + config ✅  | —                     | dashboard at `localhost:6333/dashboard`, env tests pass       |
+| 2   | Chunker ✅                    | —                     | pure function, Hebrew unit tests                              |
+| 3   | Embedder (mock + OpenAI) ✅   | —                     | mock is deterministic; OpenAI tested with stubbed `fetch`     |
+| 4   | Vector store ✅               | 1, 3                  | isolation + idempotency tests pass (in-memory and Qdrant)     |
+| 5   | Index + delete API ✅         | 2, 3, 4               | Erez's CRUD indexes into real Qdrant                          |
+| 6   | Retriever (reported) ✅       | 5                     | every suggestion returns real `retrieval` info                |
+| 7   | Retrieval eval + tuning 🟡    | 6, Erez's #10         | hit-rate table; `k` and `minScore` chosen from numbers        |
+| 8   | Prompt v2 + grounding check   | 6 (7 for real tuning) | invented prices rejected, injected text not followed          |
+| 9   | Three-way comparison → **PR** | 7, 8                  | no-knowledge vs all-knowledge vs RAG table in the PR          |
 
 ```
 Build the parts          Store them            Use them                 Prove it
@@ -341,6 +341,48 @@ Logs held ids, scores and latency (5–8 ms) and no text. The prompt stayed v1.
   in this file.
 
 **Done when:** the defaults in `env.ts` come from this table, not from a guess.
+
+**Filled in while building:**
+
+- `dev` (Erez's #9–#11) merged into the branch first, for the fixtures.
+- The runner keeps each question's **full top-5 with no threshold**, then
+  scores every `k` (1–5) × `minScore` (0.00–0.80, step 0.05) pair from those
+  same rankings. One embedding pass gives the whole table, instead of one
+  re-run per setting.
+- It goes through the production `KnowledgeIndexer` and `KnowledgeRetriever`
+  (and so `buildRetrievalQuery`), so the eval measures the code that runs,
+  not a copy of it. The store is the in-memory one (exact cosine). At our
+  size, Qdrant's HNSW returns the same ranking.
+- Suggested pair = most correct → fewest misses (grounding can block a fact
+  invented from noise, but can't supply a missed one) → smallest `k` →
+  **middle** of the tied `minScore` band, since the band's edge is where
+  one of these 18 questions flips.
+- Fixture businesses are `fixture-north` / `fixture-south`, documentIds are
+  the fixture keys. `index:fixtures` uses the same requests.
+
+**Status:** 🟡 partly done. The runner and `index:fixtures` are built and
+tested. The real run is **blocked**: OpenAI's service was down on
+2026-09-29, so no account upgrade and no `EMBEDDING_API_KEY` yet. Wiring
+check with the **mock** (not for tuning): at the current defaults, 11/18
+with the reason and 13/18 without. Even the lexical mock hints that the
+English reason dilutes the query.
+
+**Decided 2026-09-29: Stage 8 goes ahead without waiting.** What's left
+here is two setting values and one yes/no on the query, not code design,
+and with `AI_PROVIDER=mock` no real message is generated in the meantime.
+Until then, the defaults stay at the placeholders (`5` / `0.2`). **This
+stage must be finished before Stage 9**, which needs the OpenAI key anyway,
+and before #12 is marked ready. To finish:
+
+1. Set `EMBEDDING_PROVIDER=openai` + `EMBEDDING_API_KEY` in `.env`.
+2. `pnpm --filter @ai-lead-recovery/ai-service eval:retrieval`.
+3. Paste both variants' tables below. Pick `k`/`minScore` and whether to keep
+   the reason in the query, then update `env.ts`, `.env.example` and
+   `local-development.md`.
+4. `curl -X DELETE http://localhost:6333/collections/knowledge_chunks`, then
+   `index:fixtures` (⚠️ box at the top), and look at the dashboard map.
+
+**Results (text-embedding-3-small):** _pending_
 
 **Commit:** `feat(ai-service): add retrieval eval runner and tuned defaults`
 

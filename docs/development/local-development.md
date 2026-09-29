@@ -69,6 +69,8 @@ Expected values will eventually include:
   [services/ai-service/README.md](../../services/ai-service/README.md#switching-the-embedding-provider).
 - `RETRIEVAL_TOP_K` (1–5, default 5) and `RETRIEVAL_MIN_SCORE` (default 0.2): how many
   knowledge chunks a suggestion may use, and the lowest similarity score kept. The defaults are
-  placeholders until the Phase 4 retrieval eval.
+  placeholders until the Phase 4 retrieval eval
+  (`pnpm --filter @ai-lead-recovery/ai-service eval:retrieval`, see
+  [services/ai-service/README.md](../../services/ai-service/README.md#retrieval-eval)).
 
 Never put real credentials in source control.

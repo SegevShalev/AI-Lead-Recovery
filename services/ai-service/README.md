@@ -30,6 +30,43 @@ inbound messages, embeds it, and searches only that business's chunks
 - The service starts even when Qdrant is down; it keeps retrying collection
   setup in the background and logs `knowledge collection ready` once done.
 
+### Retrieval eval
+
+```bash
+pnpm --filter @ai-lead-recovery/ai-service eval:retrieval
+```
+
+Scores retrieval on [fixtures/knowledge/eval-questions.json](../../fixtures/knowledge/eval-questions.json)
+(Erez's 18 questions over the two fixture garages). No Docker needed: it
+indexes `garages.json` into a throwaway in-memory store through the real
+chunker, embedder and retriever. It prints:
+
+- per question: `hit` / `miss` / `correct_empty` / `noise` at the current
+  `RETRIEVAL_*` settings, the right document's rank and score, and the best
+  wrong chunk's score (the gap a threshold has to fit into);
+- a sweep of every `RETRIEVAL_TOP_K` (1–5) × `RETRIEVAL_MIN_SCORE` (0–0.8)
+  pair, and a suggested pair (most correct → fewest misses → smallest k →
+  middle of the tied score band);
+- all of it twice: query with the case `reason` (what production does) and
+  without it.
+
+Only meaningful with `EMBEDDING_PROVIDER=openai` (well under a cent per run).
+The mock embedder only matches shared words, and the runner warns when it is
+used. It indexes nothing into Qdrant, so the collection size doesn't matter.
+
+To see the same fixture data in the Qdrant dashboard without running
+services/api:
+
+```bash
+pnpm --filter @ai-lead-recovery/ai-service index:fixtures
+```
+
+It indexes into the real `knowledge_chunks` collection under businessIds
+`fixture-north` / `fixture-south`, which never collide with the API's
+businesses. Re-running replaces the same points. It fails fast with the
+"delete the collection" message if the collection was made for another
+embedder (below).
+
 ### Switching the embedding provider
 
 > ⚠️ Applies whenever `EMBEDDING_PROVIDER` changes between `mock` and `openai`.
