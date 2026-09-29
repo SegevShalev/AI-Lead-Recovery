@@ -51,7 +51,7 @@ describe("POST /internal/suggestions", () => {
     expect(response.body.status).toBe("ok");
     expect(response.body.language).toBe("he");
     expect(response.body.model).toBe("mock");
-    expect(response.body.promptVersion).toBe("hebrew-followup-v1");
+    expect(response.body.promptVersion).toBe("hebrew-followup-v2");
   });
 
   it("returns a degraded body instead of a 500 when the provider fails", async () => {

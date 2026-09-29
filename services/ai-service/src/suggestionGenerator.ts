@@ -5,6 +5,7 @@ import type {
   SuggestionRequest,
   SuggestionResponse,
 } from "@ai-lead-recovery/shared";
+import { checkGrounding } from "./knowledge/groundingCheck.js";
 import type { Retriever } from "./knowledge/retriever.js";
 import { modelOutputSchema, PROMPT_VERSION } from "./prompts.js";
 import type { GenerationInput, SuggestionProvider } from "./providers/types.js";
@@ -35,6 +36,13 @@ async function runWithRetries(
 ): Promise<AttemptSuccess | AttemptFailure> {
   let lastCode: SuggestionErrorCode = "provider_error";
   let lastAttempt = 0;
+  // Everything the model was shown that may contain a fact it's allowed to
+  // repeat. Not the case's estimatedValue: that's internal, never a price.
+  const groundingSources = [
+    ...input.knowledge.map((snippet) => snippet.text),
+    ...input.conversationContext.map((message) => message.text),
+    input.customer.displayName,
+  ];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     lastAttempt = attempt;
@@ -45,6 +53,22 @@ async function runWithRetries(
       if (!parsed.success) {
         throw new ProviderCallError(
           "model output failed schema validation",
+          "invalid_output",
+          true,
+        );
+      }
+      const grounding = checkGrounding(parsed.data.message, groundingSources);
+      if (!grounding.grounded) {
+        // A count, not the numbers: they are generated message content.
+        logger.warn("suggestion failed grounding check", {
+          correlationId,
+          provider: provider.name,
+          attempt,
+          ungroundedNumbers: grounding.ungrounded.length,
+        });
+        // Same path as malformed output: another attempt may stay on the facts.
+        throw new ProviderCallError(
+          "model output mentions numbers found in no source",
           "invalid_output",
           true,
         );
@@ -94,8 +118,8 @@ export class SuggestionGenerator {
   async generate(request: SuggestionRequest): Promise<SuggestionResponse> {
     // Once per request, before generation, never per retry attempt. It can't
     // throw: a failure comes back as status "failed" and generation goes on
-    // without knowledge (degrade rule). Stage 6: reported only - the prompt
-    // is still v1 and doesn't see the chunks yet.
+    // without knowledge (degrade rule). The grounding check is what keeps
+    // that safe: with no knowledge, no price can pass.
     const retrieval = await this.retriever.retrieve(request);
 
     const input: GenerationInput = {
@@ -104,6 +128,7 @@ export class SuggestionGenerator {
       estimatedValue: request.estimatedValue,
       customer: request.customer,
       conversationContext: request.conversationContext,
+      knowledge: retrieval.chunks.map((chunk) => ({ type: chunk.type, text: chunk.text })),
     };
     const correlationId = request.correlationId;
 
@@ -115,7 +140,7 @@ export class SuggestionGenerator {
       correlationId,
     );
     if (primaryResult.ok) {
-      this.logSuccess(primaryResult, correlationId, false);
+      this.logSuccess(primaryResult, correlationId, false, input.knowledge.length);
       return this.toResult(primaryResult, retrieval.info);
     }
 
@@ -128,7 +153,7 @@ export class SuggestionGenerator {
         correlationId,
       );
       if (fallbackResult.ok) {
-        this.logSuccess(fallbackResult, correlationId, true);
+        this.logSuccess(fallbackResult, correlationId, true, input.knowledge.length);
         return this.toResult(fallbackResult, retrieval.info);
       }
       this.logger.warn("suggestion degraded after primary and fallback both failed", {
@@ -152,6 +177,7 @@ export class SuggestionGenerator {
     result: AttemptSuccess,
     correlationId: string | undefined,
     servedByFallback: boolean,
+    knowledgeChunks: number,
   ): void {
     this.logger.info("suggestion generated", {
       correlationId,
@@ -159,6 +185,7 @@ export class SuggestionGenerator {
       promptVersion: PROMPT_VERSION,
       attempts: result.attempts,
       servedByFallback,
+      knowledgeChunks,
     });
   }
 

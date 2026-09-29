@@ -12,7 +12,9 @@ import { KnowledgeIndexer } from "../knowledge/knowledgeIndexer.js";
 import { MockEmbedder } from "../knowledge/mockEmbedder.js";
 import { KnowledgeRetriever } from "../knowledge/retriever.js";
 import { type VectorStore, VectorStoreError } from "../knowledge/vectorStore.js";
+import { buildHebrewFollowupPrompt } from "../prompts.js";
 import { MockSuggestionProvider } from "../providers/mock.js";
+import type { SuggestionProvider } from "../providers/types.js";
 import { SuggestionGenerator } from "../suggestionGenerator.js";
 
 const BRAKES_DOC = {
@@ -32,13 +34,15 @@ function recordingLogger(): Logger & { lines: unknown[] } {
   return { lines, info: record, warn: record, error: record };
 }
 
-function setup(overrides: { embedder?: Embedder; store?: VectorStore } = {}) {
+function setup(
+  overrides: { embedder?: Embedder; store?: VectorStore; provider?: SuggestionProvider } = {},
+) {
   const store = overrides.store ?? new InMemoryVectorStore();
   const embedder = overrides.embedder ?? new MockEmbedder();
   const logger = recordingLogger();
   const retriever = new KnowledgeRetriever(embedder, store, { topK: 5, minScore: 0.2 }, logger);
   const generator = new SuggestionGenerator(
-    new MockSuggestionProvider(),
+    overrides.provider ?? new MockSuggestionProvider(),
     undefined,
     logger,
     retriever,
@@ -202,7 +206,7 @@ describe("DELETE /internal/knowledge/:businessId/:documentId", () => {
   });
 });
 
-/** Stage 6: index → suggestion reports what it found (the prompt doesn't use it yet). */
+/** Index → suggestion: reports what it found, and the model sees only that. */
 describe("POST /internal/suggestions with indexed knowledge", () => {
   const suggestionFor = (businessId: string, customerText: string) => ({
     recoveryCaseId: "case-1",
@@ -223,7 +227,7 @@ describe("POST /internal/suggestions with indexed knowledge", () => {
     content: "רפידות בלמים קדמיות: 520 ₪ כולל עבודה.",
   };
 
-  it("reports the matching chunk as a source, without changing the message yet", async () => {
+  it("reports the matching chunk as a source", async () => {
     const { app } = setup();
     await request(app).post("/internal/knowledge/index").send(BRAKES_DOC);
 
@@ -232,13 +236,43 @@ describe("POST /internal/suggestions with indexed knowledge", () => {
       .send(suggestionFor("garage-north", "כמה עולה להחליף רפידות בלמים?"));
 
     const body = suggestionResponseSchema.parse(response.body);
-    expect(body).toMatchObject({ status: "ok", promptVersion: "hebrew-followup-v1" });
+    expect(body).toMatchObject({ status: "ok", promptVersion: "hebrew-followup-v2" });
     if (body.status !== "ok") return;
     expect(body.retrieval.status).toBe("used");
     expect(body.retrieval.sources.map((source) => source.documentId)).toEqual(["doc-brakes"]);
     expect(body.retrieval.contextVersion).toMatch(/^[0-9a-f]{16}$/);
-    // Prompt v1 still ignores knowledge, so the price isn't in the message.
-    expect(body.message).not.toContain("450");
+  });
+
+  it("puts only this garage's price in the prompt, and grounding rejects the other's", async () => {
+    // Stands in for a model that quotes the first price in the knowledge it was shown.
+    const quotesItsKnowledge: SuggestionProvider = {
+      name: "quotes-knowledge",
+      generate: async (input) => {
+        const { user } = buildHebrewFollowupPrompt(input);
+        const knowledge = user.slice(user.indexOf("<business_knowledge>"));
+        const price = knowledge.match(/(\d+) ₪/)?.[1];
+        return { message: `רפידות קדמיות: ${price ?? "?"} ₪`, reason: "quoted" };
+      },
+    };
+    // Stands in for a model that "remembers" north's price whatever it was shown.
+    const alwaysNorthPrice: SuggestionProvider = {
+      name: "always-450",
+      generate: async () => ({ message: "רפידות קדמיות: 450 ₪", reason: "leaked" }),
+    };
+    const brakesQuestion = suggestionFor("garage-south", "כמה עולה להחליף רפידות בלמים?");
+
+    for (const [provider, expected] of [
+      [quotesItsKnowledge, { status: "ok", message: "רפידות קדמיות: 520 ₪" }],
+      [alwaysNorthPrice, { status: "degraded", errorCode: "invalid_output" }],
+    ] as const) {
+      const { app } = setup({ provider });
+      await request(app).post("/internal/knowledge/index").send(BRAKES_DOC);
+      await request(app).post("/internal/knowledge/index").send(SOUTH_BRAKES);
+
+      const response = await request(app).post("/internal/suggestions").send(brakesQuestion);
+
+      expect(response.body).toMatchObject(expected);
+    }
   });
 
   it("never reports another garage's document, and says empty when this garage has none", async () => {

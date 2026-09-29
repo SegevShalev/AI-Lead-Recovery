@@ -1,8 +1,19 @@
 import type {
+  KnowledgeDocumentType,
   MessageDirection,
   RecoveryCaseType,
   SuggestionErrorCode,
 } from "@ai-lead-recovery/shared";
+
+/**
+ * One piece of business knowledge shown to the model. Untrusted data, like
+ * the conversation: facts to use, never instructions to follow. `text` is
+ * the stored chunk, which already starts with its document's title.
+ */
+export interface KnowledgeSnippet {
+  type: KnowledgeDocumentType;
+  text: string;
+}
 
 export interface GenerationInput {
   caseType: RecoveryCaseType;
@@ -10,6 +21,8 @@ export interface GenerationInput {
   estimatedValue: number;
   customer: { displayName: string; phone: string };
   conversationContext: { direction: MessageDirection; text: string; occurredAt: string }[];
+  /** Best match first. Empty = no knowledge (none matched, or retrieval failed). */
+  knowledge: KnowledgeSnippet[];
 }
 
 /**

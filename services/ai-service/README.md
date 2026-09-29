@@ -5,9 +5,9 @@ Internal service boundary for AI functionality.
 Endpoints (contracts in `packages/shared`):
 
 - `POST /internal/suggestions` — generate a Hebrew follow-up suggestion. It
-  first retrieves the business's matching knowledge and reports it in
-  `retrieval` (`used` / `empty` / `failed`). A retrieval failure never blocks
-  the suggestion.
+  first retrieves the business's matching knowledge, shows it to the model
+  (prompt `hebrew-followup-v2`), and reports it in `retrieval` (`used` /
+  `empty` / `failed`). A retrieval failure never blocks the suggestion.
 - `POST /internal/knowledge/index` — chunk → embed → store one knowledge
   document. Same or newer `version` replaces its chunks; an older one is a
   no-op (still 200). 400 invalid body, 422 the provider rejected the
@@ -29,6 +29,25 @@ inbound messages, embeds it, and searches only that business's chunks
   (mock: 256 dims, OpenAI: 1536).
 - The service starts even when Qdrant is down; it keeps retrying collection
   setup in the background and logs `knowledge collection ready` once done.
+
+### Knowledge in the prompt, and the grounding check
+
+- [prompts/hebrew-followup-v2.txt](prompts/hebrew-followup-v2.txt) renders the
+  retrieved chunks inside `<business_knowledge>`, best match first. Like
+  `<conversation_context>`, it's untrusted data: facts to use, never
+  instructions to follow. Our tag names are removed from untrusted text, so
+  it can't close a block early.
+- [src/knowledge/groundingCheck.ts](src/knowledge/groundingCheck.ts): every
+  number in the generated message must appear in the knowledge chunks, the
+  conversation or the customer's name (`1,200` = `1200`, `08:00` = `8`,
+  `10,000` also allows `10`). Anything else (an invented price, another
+  garage's price, the internal `estimatedValue`) makes the attempt
+  `invalid_output`, and the usual retry path runs. The log says
+  `suggestion failed grounding check` with a count, never the numbers.
+- **Not covered by grounding:** a number that a source itself contains. A
+  knowledge document saying "offer 50% off" makes "50" grounded. That case is
+  covered by the prompt rules and by the mandatory human review before
+  sending.
 
 ### Retrieval eval
 
