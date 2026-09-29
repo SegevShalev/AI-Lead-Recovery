@@ -45,7 +45,7 @@ AI roadmap:
 ```bash
 cp .env.example .env       # defaults already match docker-compose.yml
 pnpm install
-docker compose up -d --wait  # MongoDB + Redis — waits until both are actually ready
+docker compose up -d --wait  # MongoDB + Redis + Qdrant — waits until they're actually ready
 pnpm dev                   # runs api, recovery-worker, ai-service, and web in parallel, in one terminal
 # seeing "ECONNREFUSED" on /api/businesses in this terminal right after startup? that's expected, see below
 ```
@@ -76,6 +76,10 @@ Then open the dashboard: **http://localhost:5173** (proxies `/api` and `/dev` to
 `--filter <package-name>` scopes a command to one workspace package (the `name` field in its `package.json`) instead of running it everywhere — useful for one-off commands like `seed` that only exist in one service. Everyday commands (`pnpm dev`, `pnpm test`, `pnpm typecheck`, `pnpm lint`) already loop over every package on their own and don't need it.
 
 To reset local data: `docker compose down -v && docker compose up -d`.
+
+**Switching `EMBEDDING_PROVIDER` between `mock` and `openai`?** The Qdrant
+knowledge collection only fits one embedder at a time, so delete it and reindex.
+See [services/ai-service/README.md](services/ai-service/README.md#switching-the-embedding-provider).
 
 ### Viewing it from another device (e.g. your phone) — optional
 

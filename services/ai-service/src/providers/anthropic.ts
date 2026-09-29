@@ -1,10 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildHebrewFollowupPrompt } from "../prompts.js";
-import type { GenerationInput, SuggestionProvider } from "./types.js";
+import type { GenerationInput, ProviderResponse, SuggestionProvider, TokenUsage } from "./types.js";
 import { ProviderCallError } from "./types.js";
 
 const DEFAULT_MODEL = "claude-opus-5";
-const MAX_OUTPUT_TOKENS = 1024;
+export const MAX_OUTPUT_TOKENS = 1024;
 
 const OUTPUT_FORMAT_INSTRUCTION =
   '\n\nהחזר אך ורק אובייקט JSON תקני, ללא טקסט נוסף לפניו או אחריו וללא עטיפת ```, בדיוק בצורה הבאה: {"message": "<ההודעה ללקוח>", "reason": "<הסבר קצר לשימוש פנימי>"}.';
@@ -23,7 +23,7 @@ export class AnthropicSuggestionProvider implements SuggestionProvider {
     this.client = new Anthropic({ apiKey: options.apiKey, timeout: 20_000, maxRetries: 0 });
   }
 
-  async generate(input: GenerationInput): Promise<unknown> {
+  async generate(input: GenerationInput): Promise<ProviderResponse> {
     const { system, user } = buildHebrewFollowupPrompt(input);
 
     let response;
@@ -38,18 +38,25 @@ export class AnthropicSuggestionProvider implements SuggestionProvider {
       throw toProviderCallError(error);
     }
 
+    // Paid for even if the reply turns out unusable, so it rides on errors too.
+    const usage: TokenUsage = {
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    };
+
     // The generator's own Zod validation (modelOutputSchema) is the single
     // source of truth for whether this counts as valid output - this
     // provider only needs to get from "model response" to "candidate JSON".
     for (const block of response.content) {
       if (block.type === "text") {
         try {
-          return JSON.parse(extractJsonText(block.text));
+          return { output: JSON.parse(extractJsonText(block.text)), usage };
         } catch {
           throw new ProviderCallError(
             "anthropic response was not valid JSON",
             "invalid_output",
             true,
+            usage,
           );
         }
       }
@@ -59,6 +66,7 @@ export class AnthropicSuggestionProvider implements SuggestionProvider {
       "anthropic response contained no text block",
       "invalid_output",
       true,
+      usage,
     );
   }
 }
