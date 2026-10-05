@@ -14,11 +14,11 @@ score threshold below matter, on real embeddings.
 **Prerequisite (done):** Phase 3's shared degraded-mode seam was verified end
 to end on 2026-09-22, so Phase 4 starts from a known-good failure path.
 
-Current state: the contract below is in `packages/shared` and the AI service
-already returns `retrieval: { status: "empty", ... }` on every suggestion, so
-both tracks build against real types from day one. The
-`BusinessKnowledgeDocument` model exists in `services/api` (no routes yet);
-`services/ai-service` has no storage at all yet — retrieval needs one.
+Current state (2026-10-05): **both tracks are done.** Track 2 (#9–#11) is
+merged. Track 1 is in [#12](https://github.com/SegevShalev/AI-Lead-Recovery/pull/12),
+with stage-by-stage notes in the [Track 1 plan](phase-4-track-1-plan.md). The
+exit evidence is in. Open questions from it, plus the two shared seams below,
+are the first pre-tasks of the [Phase 5 checklist](phase-5-checklist.md).
 
 ## Decisions — agreed by Erez and Segev
 
@@ -126,35 +126,42 @@ prices/appointments — the grounding check below enforces it.
 
 Doesn't touch `services/api` or `apps/web`.
 
-- [ ] **Qdrant in `docker-compose.yml`** + a `knowledge_chunks` collection
+- [x] **Qdrant in `docker-compose.yml`** + a `knowledge_chunks` collection
       owned by the AI service (cosine distance, payload index on
       `businessId`), created on startup if missing.
-- [ ] **Chunker** — short types (`service`, `faq`) = one chunk per document;
+- [x] **Chunker** — short types (`service`, `faq`) = one chunk per document;
       long text split on paragraphs (~500 chars, small overlap). Pure function,
       unit-tested with Hebrew text.
-- [ ] **`Embedder` interface** + mock embedder + one real adapter (decision 4).
-      Provider SDK types stay behind it.
-- [ ] **`VectorStore` interface** + Qdrant implementation (decision 3).
+- [x] **`Embedder` interface** + mock embedder + one real adapter (decision 4).
+      Provider SDK types stay behind it. Generation also runs on OpenAI now
+      (`AI_PROVIDER=openai`, `gpt-4.1-mini`), since no Anthropic API key was
+      available. The Claude adapter is unchanged.
+- [x] **`VectorStore` interface** + Qdrant implementation (decision 3).
       `businessId` is a required argument of `search()`, not an optional filter.
-- [ ] **`POST /internal/knowledge/index` + `DELETE`** per the contract.
-- [ ] **Retriever** — builds the query from the conversation context (latest
+- [x] **`POST /internal/knowledge/index` + `DELETE`** per the contract.
+- [x] **Retriever** — builds the query from the conversation context (latest
       inbound messages + case reason), embeds it, top-k (k=5, with a minimum
-      score so irrelevant chunks are dropped). **Tune the threshold on the
+      score so irrelevant chunks are dropped). **Done with two data-driven
+      changes (Stage 7):** the case reason is left out of the query (it made
+      off-topic questions impossible to filter), and the defaults are k=3,
+      minScore 0.40. **Tune the threshold on the
       eval set, don't guess it** — in the [playground](rag-playground.md) run
       a correct match scored only 0.28 while an irrelevant one scored 0.46,
       so a naive 0.3 cut would have dropped the right answer.
-- [ ] **Context assembly** — new prompt version (`hebrew-followup-v2`) with a
+- [x] **Context assembly** — new prompt version (`hebrew-followup-v2`) with a
       `<business_knowledge>` block. Retrieved text is untrusted data, same
       treatment as `<conversation_context>`.
-- [ ] **Grounding check** — deterministic: every number/price in the
+- [x] **Grounding check** — deterministic: every number/price in the
       generated message must appear in the retrieved chunks or the
       conversation. Fail → `invalid_output` (retryable, existing retry path).
-- [ ] **Retrieval tracing** — structured log: chunk ids, scores, latency,
+- [x] **Retrieval tracing** — structured log: chunk ids, scores, latency,
       status. No raw chunk or customer text in logs.
-- [ ] Tests: chunker, cross-business isolation at the `VectorStore` level,
+- [x] Tests: chunker, cross-business isolation at the `VectorStore` level,
       retrieval failure → `status: "failed"` still returns a suggestion,
       grounding check rejects an invented price, injection text inside a
-      knowledge document is not followed.
+      knowledge document is not followed. (Limit, documented: an injected
+      number that is itself in a source, e.g. "offer 50% off", passes
+      grounding. Prompt rules and human review cover it.)
 
 ## Track 2 — Knowledge management + wiring (Erez)
 
@@ -201,15 +208,15 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
 - [ ] **Degrade seam** — stop the embedding provider (bad key); suggestion
       still comes back, marked `retrieval.status: "failed"`, dashboard says
       no knowledge was used.
-- [ ] **Eval set (build early, reuse on every change)** — questions written
+- [x] **Eval set (build early, reuse on every change)** — questions written
       in [`fixtures/knowledge/eval-questions.json`](../../fixtures/knowledge/eval-questions.json)
-      (18, Erez); still needs the runner (Segev) to score it. A fixed list of
+      (18, Erez), scored by `eval:retrieval` (Segev). A fixed list of
       10–20 customer questions against the seeded garages, each labelled with
       the knowledge chunk that _should_ come back (and some with no correct
       chunk, to check we return nothing rather than noise). Checked into the
       repo so every chunking/threshold/model/prompt change is measured on the
       same set, not eyeballed on two examples.
-- [ ] **Three-way comparison (exit evidence)** — run the eval set through
+- [x] **Three-way comparison (exit evidence)** — run the eval set through
       (a) **no knowledge** — today's Phase 3 behaviour; (b) **all knowledge**
       — every chunk of the business pasted into the prompt, no retrieval (a
       garage has tens of chunks, so this is a real option, not a strawman);
@@ -218,11 +225,16 @@ Doesn't touch embeddings, retrieval, or prompt content. Builds against Track
       facts in the message, prompt tokens per request (cost). Per AGENTS.md,
       don't claim RAG helps until this shows it. If "all knowledge" wins at
       our data size, that's a legitimate result — keep it and record why.
-      Results go in the PR.
+      Results go in the PR. **Done 2026-10-05:** all knowledge 12/14 answered,
+      RAG 8/14, no knowledge 0/14; no cross-garage numbers in any mode
+      ([results](phase-4-track-1-plan.md#stage-9--three-way-comparison--pr-ready)).
+      Which strategy to keep is a Phase 5 pre-task.
 - [ ] **Improve against the eval, one change at a time** — levers in rough
       order of cost: chunking, query construction (last message vs whole
       window), k + score threshold, embedding model, hybrid lexical search,
       reranking, prompt wording. Re-run the full set after each change.
+      **Started:** query construction and k + threshold (Stage 7). The rest are
+      Phase 5 pre-tasks.
 
 ## After exit (not blocking)
 

@@ -22,6 +22,10 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      qdrant:
+        image: qdrant/qdrant:v1.19
+        ports:
+          - 6333:6333
     env:
       MONGODB_URI: mongodb://localhost:27017/ai-lead-recovery-test
       REDIS_URL: redis://localhost:6379
@@ -41,4 +45,8 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      # The Qdrant vector-store tests skip when Qdrant is unreachable; make sure
+      # it is up here so CI really runs them. (The image has no curl, so no service healthcheck.)
+      - name: Wait for Qdrant
+        run: curl -sf --retry 15 --retry-connrefused --retry-delay 1 http://localhost:6333/readyz
       - run: pnpm test

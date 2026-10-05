@@ -1,7 +1,11 @@
-import { createLogger } from "@ai-lead-recovery/shared";
+import { createLogger, emptyRetrieval } from "@ai-lead-recovery/shared";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
+import { InMemoryVectorStore } from "./knowledge/inMemoryVectorStore.js";
+import { KnowledgeIndexer } from "./knowledge/knowledgeIndexer.js";
+import type { Retriever } from "./knowledge/retriever.js";
+import { MockEmbedder } from "./knowledge/mockEmbedder.js";
 import { MockSuggestionProvider } from "./providers/mock.js";
 import { SuggestionGenerator } from "./suggestionGenerator.js";
 
@@ -18,10 +22,18 @@ const validRequestBody = {
   ],
 };
 
+const noKnowledge: Retriever = { retrieve: async () => ({ info: emptyRetrieval, chunks: [] }) };
+
 function buildApp(
-  generator = new SuggestionGenerator(new MockSuggestionProvider(), undefined, silentLogger),
+  generator = new SuggestionGenerator(
+    new MockSuggestionProvider(),
+    undefined,
+    silentLogger,
+    noKnowledge,
+  ),
 ) {
-  return createApp(generator);
+  const indexer = new KnowledgeIndexer(new MockEmbedder(), new InMemoryVectorStore(), silentLogger);
+  return createApp(generator, indexer, silentLogger);
 }
 
 describe("GET /health", () => {
@@ -39,7 +51,7 @@ describe("POST /internal/suggestions", () => {
     expect(response.body.status).toBe("ok");
     expect(response.body.language).toBe("he");
     expect(response.body.model).toBe("mock");
-    expect(response.body.promptVersion).toBe("hebrew-followup-v1");
+    expect(response.body.promptVersion).toBe("hebrew-followup-v2");
   });
 
   it("returns a degraded body instead of a 500 when the provider fails", async () => {
@@ -47,6 +59,7 @@ describe("POST /internal/suggestions", () => {
       new MockSuggestionProvider({ failureMode: "provider_unavailable" }),
       undefined,
       silentLogger,
+      noKnowledge,
     );
     const response = await request(buildApp(generator))
       .post("/internal/suggestions")
