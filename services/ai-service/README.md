@@ -21,9 +21,9 @@ The service should remain provider-agnostic. A local deterministic/mock provider
 
 `src/knowledge/`: `chunker` → `Embedder` (`MockEmbedder` | `OpenAIEmbedder`)
 → `VectorStore` (`QdrantVectorStore` | `InMemoryVectorStore` for tests).
-`KnowledgeRetriever` builds a query from the case reason and the latest
-inbound messages, embeds it, and searches only that business's chunks
-(`RETRIEVAL_TOP_K`, `RETRIEVAL_MIN_SCORE`).
+`KnowledgeRetriever` builds a query from the customer's latest inbound
+messages, embeds it, and searches only that business's chunks
+(`RETRIEVAL_TOP_K`, `RETRIEVAL_MIN_SCORE`, tuned by the retrieval eval below).
 
 - One Qdrant collection, `knowledge_chunks`, sized for the current embedder
   (mock: 256 dims, OpenAI: 1536).
@@ -66,8 +66,9 @@ chunker, embedder and retriever. It prints:
 - a sweep of every `RETRIEVAL_TOP_K` (1–5) × `RETRIEVAL_MIN_SCORE` (0–0.8)
   pair, and a suggested pair (most correct → fewest misses → smallest k →
   middle of the tied score band);
-- all of it twice: query with the case `reason` (what production does) and
-  without it.
+- all of it twice: the query with the case `reason` and without it (what
+  production does since the Stage 7 eval: the reason made off-topic
+  questions impossible to filter out).
 
 Only meaningful with `EMBEDDING_PROVIDER=openai` (well under a cent per run).
 The mock embedder only matches shared words, and the runner warns when it is

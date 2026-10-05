@@ -65,22 +65,27 @@ const HOURS = "שעות פתיחה\nראשון עד חמישי 08:00-17:00. שי
 const BRAKES_QUESTION = "כמה עולה להחליף רפידות בלמים?";
 
 describe("buildRetrievalQuery", () => {
-  it("uses the case reason plus the latest 3 inbound messages, skipping ours", () => {
-    const query = buildRetrievalQuery(
-      request([
-        inbound("הודעה 1", 1),
-        outbound("תשובה שלנו", 2),
-        inbound("הודעה 2", 3),
-        inbound("הודעה 3", 4),
-        inbound("הודעה 4", 5),
-      ]),
+  const conversation = [
+    inbound("הודעה 1", 1),
+    outbound("תשובה שלנו", 2),
+    inbound("הודעה 2", 3),
+    inbound("הודעה 3", 4),
+    inbound("הודעה 4", 5),
+  ];
+
+  it("uses only the latest 3 inbound messages: no case reason, none of ours", () => {
+    expect(buildRetrievalQuery(request(conversation))).toBe("הודעה 2\nהודעה 3\nהודעה 4");
+  });
+
+  it("prepends the case reason only when asked (the Stage 7 eval comparison)", () => {
+    expect(buildRetrievalQuery(request(conversation), { includeReason: true })).toBe(
+      "no reply within 60 minutes\nהודעה 2\nהודעה 3\nהודעה 4",
     );
-    expect(query).toBe("no reply within 60 minutes\nהודעה 2\nהודעה 3\nהודעה 4");
   });
 
   it("falls back to the latest message when the customer hasn't written (e.g. an unanswered quote)", () => {
     const query = buildRetrievalQuery(request([outbound("הצעת מחיר: רפידות בלמים 450 ₪")]));
-    expect(query).toBe("no reply within 60 minutes\nהצעת מחיר: רפידות בלמים 450 ₪");
+    expect(query).toBe("הצעת מחיר: רפידות בלמים 450 ₪");
   });
 
   it("returns undefined when there is no message text to search with", () => {

@@ -28,22 +28,35 @@ export interface Retriever {
 export interface RetrievalOptions {
   topK: number;
   minScore: number;
+  /**
+   * Prepend the case reason to the query. Off: the Stage 7 eval showed the
+   * English system reason ("no reply within 60 minutes") pulls every score
+   * together, so no threshold could tell off-topic questions from real ones
+   * (14/18 with it, 16/18 without). Only the eval turns it on, to reproduce
+   * that comparison.
+   */
+  queryIncludesReason?: boolean;
 }
 
 /**
- * What we search with (checklist: "latest inbound messages + case reason").
- * If the customer hasn't written since our last message (e.g. a quote went
- * unanswered), the latest message of either side is used instead - our own
- * quote usually names the service. Returns undefined when there is nothing
- * to search with. Kept separate so Stage 7 can compare query variants.
+ * What we search with: the customer's latest inbound messages (the checklist
+ * also listed the case reason; dropped on Stage 7 evidence, see
+ * RetrievalOptions.queryIncludesReason). If the customer hasn't written since
+ * our last message (e.g. a quote went unanswered), the latest message of
+ * either side is used instead - our own quote usually names the service.
+ * Returns undefined when there is nothing to search with.
  */
-export function buildRetrievalQuery(request: SuggestionRequest): string | undefined {
+export function buildRetrievalQuery(
+  request: SuggestionRequest,
+  { includeReason = false }: { includeReason?: boolean } = {},
+): string | undefined {
   const messages = request.conversationContext.filter((message) => message.text.trim() !== "");
   const inbound = messages.filter((message) => message.direction === "inbound");
   const picked = inbound.length > 0 ? inbound.slice(-QUERY_INBOUND_MESSAGES) : messages.slice(-1);
   if (picked.length === 0) return undefined;
 
-  const query = [request.reason, ...picked.map((message) => message.text)]
+  const parts = picked.map((message) => message.text);
+  const query = (includeReason ? [request.reason, ...parts] : parts)
     .map((part) => part.trim())
     .filter((part) => part !== "")
     .join("\n");
@@ -73,7 +86,9 @@ export class KnowledgeRetriever implements Retriever {
     const startedAt = Date.now();
     const trace = { correlationId: request.correlationId, businessId: request.businessId };
 
-    const query = buildRetrievalQuery(request);
+    const query = buildRetrievalQuery(request, {
+      includeReason: this.options.queryIncludesReason ?? false,
+    });
     if (query === undefined) {
       this.logger.info("knowledge retrieved", { ...trace, status: "empty", reason: "no_query" });
       return { info: emptyInfo("empty"), chunks: [] };

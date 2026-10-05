@@ -59,9 +59,9 @@ describe("loadEnv", () => {
       MONGODB_URI: "mongodb://localhost:27017/ai-lead-recovery",
       REDIS_URL: "redis://localhost:6379",
     };
-    expect(loadEnv(base)).toMatchObject({ RETRIEVAL_TOP_K: 5, RETRIEVAL_MIN_SCORE: 0.2 });
-    expect(loadEnv({ ...base, RETRIEVAL_TOP_K: "3", RETRIEVAL_MIN_SCORE: "0.35" })).toMatchObject({
-      RETRIEVAL_TOP_K: 3,
+    expect(loadEnv(base)).toMatchObject({ RETRIEVAL_TOP_K: 3, RETRIEVAL_MIN_SCORE: 0.4 });
+    expect(loadEnv({ ...base, RETRIEVAL_TOP_K: "2", RETRIEVAL_MIN_SCORE: "0.35" })).toMatchObject({
+      RETRIEVAL_TOP_K: 2,
       RETRIEVAL_MIN_SCORE: 0.35,
     });
     expect(() => loadEnv({ ...base, RETRIEVAL_TOP_K: "6" })).toThrow(/RETRIEVAL_TOP_K/);

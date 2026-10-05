@@ -22,9 +22,12 @@ export const envSchema = z
     EMBEDDING_PROVIDER: z.enum(["mock", "openai"]).default("mock"),
     EMBEDDING_API_KEY: z.string().optional(),
     // Retrieval per suggestion: at most 5 chunks (the contract's `sources` cap),
-    // dropping any below the score. Defaults are placeholders until the Stage 7 eval.
-    RETRIEVAL_TOP_K: z.coerce.number().int().min(1).max(5).default(5),
-    RETRIEVAL_MIN_SCORE: z.coerce.number().min(-1).max(1).default(0.2),
+    // dropping any below the score. Defaults tuned on the Stage 7 eval with
+    // text-embedding-3-small (docs/development/phase-4-track-1-plan.md): 0.40
+    // keeps every off-topic question out (16/18 correct). Scores are
+    // model-specific, so re-run `eval:retrieval` after changing the embedder.
+    RETRIEVAL_TOP_K: z.coerce.number().int().min(1).max(5).default(3),
+    RETRIEVAL_MIN_SCORE: z.coerce.number().min(-1).max(1).default(0.4),
   })
   .refine((env) => env.QUEUE_PROVIDER !== "sqs" || (env.SQS_QUEUE_URL && env.AWS_REGION), {
     message: "SQS_QUEUE_URL and AWS_REGION are required when QUEUE_PROVIDER=sqs",

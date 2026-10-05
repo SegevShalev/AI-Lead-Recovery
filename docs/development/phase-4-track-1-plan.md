@@ -19,7 +19,7 @@ I stop after any stage, nothing is broken and nothing is half-wired.
 | 4   | Vector store ✅                  | 1, 3                  | isolation + idempotency tests pass (in-memory and Qdrant)     |
 | 5   | Index + delete API ✅            | 2, 3, 4               | Erez's CRUD indexes into real Qdrant                          |
 | 6   | Retriever (reported) ✅          | 5                     | every suggestion returns real `retrieval` info                |
-| 7   | Retrieval eval + tuning 🟡       | 6, Erez's #10         | hit-rate table; `k` and `minScore` chosen from numbers        |
+| 7   | Retrieval eval + tuning ✅       | 6, Erez's #10         | hit-rate table; `k` and `minScore` chosen from numbers        |
 | 8   | Prompt v2 + grounding check ✅   | 6 (7 for real tuning) | invented prices rejected, injected text not followed          |
 | 9   | Three-way comparison 🟡 → **PR** | 7, 8                  | no-knowledge vs all-knowledge vs RAG table in the PR          |
 
@@ -371,30 +371,59 @@ Logs held ids, scores and latency (5–8 ms) and no text. The prompt stayed v1.
 - Fixture businesses are `fixture-north` / `fixture-south`, documentIds are
   the fixture keys. `index:fixtures` uses the same requests.
 
-**Status:** 🟡 partly done. The runner and `index:fixtures` are built and
-tested. The real run is **blocked**: OpenAI's service was down on
-2026-09-29, so no account upgrade and no `EMBEDDING_API_KEY` yet. Wiring
-check with the **mock** (not for tuning): at the current defaults, 11/18
-with the reason and 13/18 without. Even the lexical mock hints that the
-English reason dilutes the query.
+**Status:** ✅ real run on 2026-10-05 with `text-embedding-3-small`
+(19 documents → 19 chunks, 2 garages, 18 questions: 15 with an answer, 3 that
+should return nothing). The runner and `index:fixtures` were built on
+2026-09-29 while the key was blocked.
 
-**Decided 2026-09-29: Stage 8 goes ahead without waiting.** What's left
-here is two setting values and one yes/no on the query, not code design,
-and with `AI_PROVIDER=mock` no real message is generated in the meantime.
-Until then, the defaults stay at the placeholders (`5` / `0.2`). **This
-stage must be finished before Stage 9's real run** (its runner is already
-built; its rag row needs the tuned settings) and before #12 is marked ready.
-To finish:
+**Results (text-embedding-3-small):**
 
-1. Set `EMBEDDING_PROVIDER=openai` + `EMBEDDING_API_KEY` in `.env`.
-2. `pnpm --filter @ai-lead-recovery/ai-service eval:retrieval`.
-3. Paste both variants' tables below. Pick `k`/`minScore` and whether to keep
-   the reason in the query, then update `env.ts`, `.env.example` and
-   `local-development.md`.
-4. `curl -X DELETE http://localhost:6333/collections/knowledge_chunks`, then
-   `index:fixtures` (⚠️ box at the top), and look at the dashboard map.
+| Query            | Best setting              | Correct /18 | Hits | Misses | Correctly empty | Noise |
+| ---------------- | ------------------------- | ----------- | ---- | ------ | --------------- | ----- |
+| reason + message | k ≥ 3, minScore 0.00–0.30 | 14          | 14   | 1      | 0               | 3     |
+| **message only** | **minScore 0.40** (any k) | **16**      | 13   | 2      | **3**           | **0** |
 
-**Results (text-embedding-3-small):** _pending_
+Sweep around the chosen threshold, message only (any k ≥ 2):
+
+| minScore    | 0.30    | 0.35    | **0.40**    | 0.45    | 0.50    |
+| ----------- | ------- | ------- | ----------- | ------- | ------- |
+| correct /18 | 14 (n3) | 15 (n2) | **16 (n0)** | 15 (m3) | 12 (m6) |
+
+What the numbers say:
+
+- **The English reason hurts.** It adds the same topic-free text to every
+  query, which pulls all scores together. With it, off-topic questions score
+  0.41–0.43, as high as real answers (lowest correct hit 0.41), so **no
+  threshold separates them**. Without it, off-topic questions top out at
+  0.36 and correct rank-1 hits start at 0.415.
+- **minScore 0.40** sits in that gap. The gap is only ~0.05 wide on 18
+  questions, so treat it as a first value, not a law. Erring high is the
+  safe side: a borderline question gets "no knowledge", never a wrong fact.
+- **k doesn't change the score at 0.40.** Chose **3**, not the runner's
+  tie-break k = 1, so a two-topic question (e.g. price + hours) can get both.
+  The threshold keeps noise out either way.
+- **The 2 misses:**
+  - `north-brakes-paraphrase` ("הרכב חורק … על הברקס"): the brakes chunk
+    isn't in the top 5 with either query. The model doesn't link the slang
+    "ברקס/חורק" to "רפידות בלמים". This is the case for the later levers:
+    synonyms in the document, hybrid lexical search, a larger model.
+  - `south-brakes-direct` ("כמה עולים בלמים אצלכם?"): the right chunk is 2nd
+    (0.370), under another document (0.380). The two garages' brakes
+    documents are nearly identical, but north's question says "רפידות" and
+    scores 0.475, so the question's wording made the difference.
+- A first run stopped once on a transient OpenAI error. The same question
+  then embedded 5/5, and a full re-run was clean. The runner stops instead
+  of counting a failure as a miss, which is right, but its silent logger
+  hides the error code (small follow-up).
+
+**Decided 2026-10-05:** query = customer messages only
+(`RetrievalOptions.queryIncludesReason`, default off; the eval turns it on
+to reproduce the comparison), `RETRIEVAL_TOP_K=3`, `RETRIEVAL_MIN_SCORE=0.4`.
+This deviates from the checklist's "latest inbound messages + case reason"
+on the evidence above. Tell Erez in #12.
+
+To finish: delete `knowledge_chunks` and run `index:fixtures` with the real
+embedder (⚠️ box at the top), then look at the dashboard map.
 
 **Commit:** `feat(ai-service): add retrieval eval runner and tuned defaults`
 

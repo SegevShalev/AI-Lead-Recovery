@@ -21,11 +21,13 @@ export const MAX_TOP_K = 5;
 /**
  * Query experiment (plan Stage 7): the case reason is an English system
  * string with no topic in it, so it may only dilute the customer's question.
- * Both variants go through the production `buildRetrievalQuery`.
+ * Result: it does (14/18 vs 16/18), so production uses "message only". Both
+ * variants stay so the comparison can be re-run; each value is the
+ * retriever's `queryIncludesReason`, and every request carries the real reason.
  */
 export const QUERY_VARIANTS = {
-  "reason + message": EVAL_CASE_REASON,
-  "message only": "",
+  "reason + message": true,
+  "message only": false,
 } as const;
 export type QueryVariant = keyof typeof QUERY_VARIANTS;
 
@@ -193,14 +195,12 @@ export async function runRetrievalEval(
   const retriever = new KnowledgeRetriever(
     embedder,
     store,
-    { topK: MAX_TOP_K, minScore: -1 },
+    { topK: MAX_TOP_K, minScore: -1, queryIncludesReason: QUERY_VARIANTS[variant] },
     silentLogger,
   );
   const runs: CaseRun[] = [];
   for (const evalCase of resolveEvalCases(fixtures)) {
-    const { info, chunks } = await retriever.retrieve(
-      evalRequest(evalCase, QUERY_VARIANTS[variant]),
-    );
+    const { info, chunks } = await retriever.retrieve(evalRequest(evalCase, EVAL_CASE_REASON));
     // The retriever degrades quietly in production; in an eval that would
     // turn an outage into a column of misses, so stop instead.
     if (info.status === "failed") {

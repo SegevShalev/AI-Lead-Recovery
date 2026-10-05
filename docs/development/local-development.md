@@ -67,9 +67,10 @@ Expected values will eventually include:
   `EMBEDDING_API_KEY` (required for `openai`; separate from `AI_API_KEY`). Switching
   providers means deleting the `knowledge_chunks` collection and reindexing. See
   [services/ai-service/README.md](../../services/ai-service/README.md#switching-the-embedding-provider).
-- `RETRIEVAL_TOP_K` (1–5, default 5) and `RETRIEVAL_MIN_SCORE` (default 0.2): how many
-  knowledge chunks a suggestion may use, and the lowest similarity score kept. The defaults are
-  placeholders until the Phase 4 retrieval eval
+- `RETRIEVAL_TOP_K` (1–5, default 3) and `RETRIEVAL_MIN_SCORE` (default 0.4): how many
+  knowledge chunks a suggestion may use, and the lowest similarity score kept. Tuned for
+  `text-embedding-3-small` on the Phase 4 retrieval eval. Scores are model-specific, so re-run it
+  after changing the embedder
   (`pnpm --filter @ai-lead-recovery/ai-service eval:retrieval`, see
   [services/ai-service/README.md](../../services/ai-service/README.md#retrieval-eval)).
 
