@@ -1,10 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildHebrewFollowupPrompt } from "../prompts.js";
 import type { GenerationInput, ProviderResponse, SuggestionProvider, TokenUsage } from "./types.js";
-import { ProviderCallError } from "./types.js";
+import { MAX_OUTPUT_TOKENS, ProviderCallError } from "./types.js";
 
 const DEFAULT_MODEL = "claude-opus-5";
-export const MAX_OUTPUT_TOKENS = 1024;
 
 const OUTPUT_FORMAT_INSTRUCTION =
   '\n\nהחזר אך ורק אובייקט JSON תקני, ללא טקסט נוסף לפניו או אחריו וללא עטיפת ```, בדיוק בצורה הבאה: {"message": "<ההודעה ללקוח>", "reason": "<הסבר קצר לשימוש פנימי>"}.';

@@ -25,6 +25,13 @@ export interface GenerationInput {
   knowledge: KnowledgeSnippet[];
 }
 
+/**
+ * Output budget per call, the same for every real provider so their results
+ * (and the Stage 9 cost estimate) are comparable. A follow-up message plus a
+ * one-line reason needs a few hundred tokens.
+ */
+export const MAX_OUTPUT_TOKENS = 1024;
+
 /** Tokens one model call used - what it cost. Provider-neutral names. */
 export interface TokenUsage {
   inputTokens: number;

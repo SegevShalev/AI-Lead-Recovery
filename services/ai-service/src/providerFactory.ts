@@ -1,6 +1,7 @@
 import type { Env } from "@ai-lead-recovery/config";
 import { AnthropicSuggestionProvider } from "./providers/anthropic.js";
 import { MockSuggestionProvider } from "./providers/mock.js";
+import { OpenAISuggestionProvider } from "./providers/openai.js";
 import type { SuggestionProvider } from "./providers/types.js";
 
 type ProviderName = Env["AI_PROVIDER"];
@@ -18,6 +19,10 @@ export function createProvider(
       }
       return new AnthropicSuggestionProvider({ apiKey });
     case "openai":
+      if (!apiKey) {
+        throw new Error("AI_API_KEY is required when AI_PROVIDER=openai");
+      }
+      return new OpenAISuggestionProvider({ apiKey });
     case "bedrock":
       throw new Error(`AI_PROVIDER=${providerName} is not implemented yet`);
   }

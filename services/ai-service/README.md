@@ -15,6 +15,11 @@ Endpoints (contracts in `packages/shared`):
 - `DELETE /internal/knowledge/:businessId/:documentId` — 204, also for a
   document that was never indexed; 503 if Qdrant is unavailable.
 
+Generation providers (`AI_PROVIDER`): `mock` (default, no key), `openai`
+(`gpt-4.1-mini`, strict JSON schema), `anthropic` (`claude-opus-5`). All of them
+sit behind `SuggestionProvider`, get the same prompt, and their output is
+validated by the same schema and grounding check.
+
 The service should remain provider-agnostic. A local deterministic/mock provider is acceptable until the rest of the application is working.
 
 ## Knowledge index (Phase 4)
@@ -101,7 +106,7 @@ chunk of the garage in the prompt) and **rag**. It prints a Markdown table
 document, grounding rejects, degraded, tokens per question, cost) and a
 per-question breakdown. `--messages` also prints every reply.
 
-- Needs `AI_PROVIDER=anthropic` + `AI_API_KEY`. With the mock AI, all three rows
+- Needs a real model: `AI_PROVIDER=openai` (or `anthropic`) + `AI_API_KEY`. With the mock AI, all three rows
   are the same, because the mock ignores knowledge. The rag row also needs
   `EMBEDDING_PROVIDER=openai` and the Stage 7 settings. The runner warns about
   both.

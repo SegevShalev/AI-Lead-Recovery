@@ -59,8 +59,8 @@ Expected values will eventually include:
 - `QUEUE_PROVIDER=local|sqs`
 - `SQS_QUEUE_URL`
 - `WORKER_PORT` (recovery-worker's health check endpoint, default 3002)
-- `AI_PROVIDER`
-- `AI_API_KEY`
+- `AI_PROVIDER=mock|openai|anthropic` (who writes the suggestion; default `mock`)
+- `AI_API_KEY` (that provider's key; with `openai` it can be the same key as `EMBEDDING_API_KEY`)
 - `AI_SERVICE_URL` (services/api's base URL for calling services/ai-service, default `http://localhost:3001`)
 - `QDRANT_URL` (services/ai-service's vector store, default `http://localhost:6333`)
 - `EMBEDDING_PROVIDER=mock|openai` (default `mock`: deterministic, no key, lexical only) and

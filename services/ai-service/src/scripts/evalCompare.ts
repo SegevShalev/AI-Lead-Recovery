@@ -7,7 +7,7 @@
  * retries, grounding check). Prints the estimated cost first and only spends
  * it with --yes. --messages also prints every generated message.
  *
- * Meaningful only with a real model (AI_PROVIDER=anthropic): the mock ignores
+ * Meaningful only with a real model (AI_PROVIDER=openai or anthropic): the mock ignores
  * knowledge, so all three rows come out the same. The rag row also needs the
  * real embedder (EMBEDDING_PROVIDER=openai) and the Stage 7 settings.
  */
@@ -31,15 +31,17 @@ import { createEmbedderFromEnv } from "../knowledge/embedderFactory.js";
 import { MockEmbedder } from "../knowledge/mockEmbedder.js";
 import { createProvider } from "../providerFactory.js";
 import { buildHebrewFollowupPrompt } from "../prompts.js";
-import { MAX_OUTPUT_TOKENS } from "../providers/anthropic.js";
+import { MAX_OUTPUT_TOKENS } from "../providers/types.js";
 import { MockSuggestionProvider } from "../providers/mock.js";
 
 /**
- * $ per million tokens, from Anthropic's price list (2026-06). A model not
- * listed here still runs; only the dollar estimate is skipped.
+ * $ per million tokens, from each provider's price list (Anthropic 2026-06,
+ * OpenAI 2026-10). A model not listed here still runs; only the dollar
+ * estimate is skipped.
  */
 const PRICES_PER_MTOK: Record<string, { input: number; output: number }> = {
   "claude-opus-5": { input: 5, output: 25 },
+  "gpt-4.1-mini": { input: 0.4, output: 1.6 },
 };
 /** Rough: Hebrew runs about 2 characters per token. Measured tokens are printed after the run. */
 const CHARS_PER_TOKEN = 2;
@@ -63,7 +65,7 @@ console.log(
 if (provider instanceof MockSuggestionProvider) {
   console.log(
     "\n⚠  Mock AI: it ignores knowledge, so the three rows will be the same. Wiring check only.\n" +
-      "   Set AI_PROVIDER=anthropic and AI_API_KEY for real numbers.",
+      "   Set AI_PROVIDER=openai (or anthropic) and AI_API_KEY for real numbers.",
   );
 }
 if (embedder instanceof MockEmbedder) {

@@ -23,16 +23,15 @@ I stop after any stage, nothing is broken and nothing is half-wired.
 | 8   | Prompt v2 + grounding check ✅   | 6 (7 for real tuning) | invented prices rejected, injected text not followed          |
 | 9   | Three-way comparison 🟡 → **PR** | 7, 8                  | no-knowledge vs all-knowledge vs RAG table in the PR          |
 
-> **⏳ Waiting on keys (as of 2026-09-30).** All code for Stages 7–9 is built
-> and tested. What's left is **real runs only**:
+> **One key for everything (decided 2026-10-05).** No Anthropic API key is
+> available, so **OpenAI does both jobs**: embeddings (`text-embedding-3-small`,
+> Stage 7 ✅) and writing the message (`AI_PROVIDER=openai`,
+> `gpt-4.1-mini`, via the new `OpenAISuggestionProvider`). The Claude adapter
+> stays, and `AI_PROVIDER=anthropic` still works whenever a key exists. The
+> Phase 3 checklist allowed "Anthropic **or** OpenAI". Tell Erez in #12 that
+> Stage 9's results are GPT's.
 >
-> | Needs                                                           | Unblocks                                                      |
-> | --------------------------------------------------------------- | ------------------------------------------------------------- |
-> | OpenAI `EMBEDDING_API_KEY` (upgrade blocked by OpenAI's outage) | Stage 7 tuning, then Stage 9's rag row                        |
-> | Anthropic `AI_API_KEY`                                          | Stage 9's no-knowledge and all-knowledge rows (can run first) |
->
-> When the keys arrive: **Stage 7 → Stage 9 → #12 ready for review.** Each
-> stage below has a "To finish" list.
+> Next: **Stage 9 run → #12 ready for review.**
 
 ```
 Build the parts          Store them            Use them                 Prove it
@@ -422,8 +421,10 @@ to reproduce the comparison), `RETRIEVAL_TOP_K=3`, `RETRIEVAL_MIN_SCORE=0.4`.
 This deviates from the checklist's "latest inbound messages + case reason"
 on the evidence above. Tell Erez in #12.
 
-To finish: delete `knowledge_chunks` and run `index:fixtures` with the real
-embedder (⚠️ box at the top), then look at the dashboard map.
+**Local index rebuilt (2026-10-05):** deleted the mock `knowledge_chunks`
+(7 demo points, 256 dims) and ran `index:fixtures` with the real embedder:
+19 chunks (fixture-north 9, fixture-south 10), 1536 dims. The dashboard map
+(Visualize → PCA, color by `businessId`) shows the real-embedding picture.
 
 **Commit:** `feat(ai-service): add retrieval eval runner and tuned defaults`
 
@@ -498,7 +499,7 @@ Stage 9, together with the Stage 7 tuning.
 - `pnpm --filter @ai-lead-recovery/ai-service eval:compare`: runs the eval
   questions in three modes (1. no knowledge, 2. all of the garage's chunks in the
   prompt, 3. RAG) and prints a table with these columns: correct facts, invented facts, and prompt tokens.
-- Needs a real generation key (`AI_PROVIDER=anthropic`). Its cost will be printed before
+- Needs a real generation key (`AI_PROVIDER=openai` or `anthropic`). Its cost will be printed before
   the run. If the running service is on a different embedder than the last
   index, delete `knowledge_chunks` and reindex first (⚠️ box at the top).
 
@@ -539,29 +540,46 @@ size, that's a valid result. Record it and why.
   output).
 - The summary prints as a Markdown table, ready to paste into #12.
 
-**Status:** 🟡 partly done. The runner is built and tested (fake models
-and the mock AI). **The real run is waiting for keys:**
+**Status:** 🟡 runner built and tested (fake models and the mock AI);
+waiting for the real run.
 
-- `AI_API_KEY` (Anthropic) for modes 1 and 2. It doesn't depend on
-  OpenAI, so these two rows can run before the OpenAI key arrives.
-- the OpenAI key **and Stage 7 finished** for the rag row. Running
-  it on the mock embedder gives a row that means nothing.
+**Generation provider (added 2026-10-05):** `OpenAISuggestionProvider`
+([providers/openai.ts](../../services/ai-service/src/providers/openai.ts)), with
+plain `fetch` to Chat Completions, like the embedder:
+
+- `gpt-4.1-mini`: not a reasoning model, so no hidden reasoning tokens use up
+  the 1024-token output budget (the risk the Claude plan had to check for).
+  $0.40 / $1.60 per million input / output tokens.
+- Strict JSON schema (`message`, `reason`) enforced by OpenAI, so no extra
+  "reply in JSON" instruction is needed. Both providers get the same prompt v2.
+- A refusal or a cut-off reply (`finish_reason` ≠ `stop`) is not retried.
+  Non-JSON is retried. HTTP errors map to the same codes as the Claude
+  adapter, so retry and fallback behave the same.
+
+**One real suggestion first (2026-10-05):** end to end with real embeddings,
+the tuned retrieval and `gpt-4.1-mini`: `ok`, prompt v2, 1 attempt, ~~800
+tokens (~~$0.0005), 2.5–3.6 s. Two **quality** findings that Stage 9 should
+measure, not provider bugs:
+
+- `north-brakes-direct`: retrieval found the brakes document, but the
+  message doesn't give the price. It also says "we wanted to make sure you got
+  the answer", although an unanswered case means no answer was sent.
+- `north-off-topic` ("אתם מוכרים פיצה?"): retrieval correctly returned
+  nothing, but the message offered "our pizza menu", an **invented business
+  fact**. The grounding check only covers numbers, so it passed. Human review
+  before sending is what catches this in the MVP.
 
 To finish:
 
-1. Finish Stage 7 (tuned `RETRIEVAL_*`, OpenAI embedder).
-2. `.env`: `AI_PROVIDER=anthropic`, `AI_API_KEY=…`, `EMBEDDING_PROVIDER=openai`.
-3. **Check before paying:** [providers/anthropic.ts](../../services/ai-service/src/providers/anthropic.ts)
-   sends `max_tokens: 1024` with a 20 s timeout. On `claude-opus-5` thinking is
-   on by default and its tokens count toward `max_tokens`, so replies may be cut
-   off (non-JSON, then retried) or time out. Do one real suggestion
-   first. If it degrades, fix this (e.g. raise `max_tokens`, or set a
-   low `effort`) as its own small change, since it's production config too.
-4. `pnpm --filter @ai-lead-recovery/ai-service eval:compare` (dry: prints the
+1. `.env`: `AI_PROVIDER=openai` and `AI_API_KEY=` the same OpenAI key as
+   `EMBEDDING_API_KEY` (two settings, because the two jobs could use
+   different providers).
+2. `pnpm --filter @ai-lead-recovery/ai-service eval:compare` (dry: prints the
    estimate, sends nothing), then the same command with `--yes --messages`.
-5. Paste the table and a short conclusion here and into #12's description.
+3. Paste the table and a short conclusion here and into #12's description,
+   including how often messages invent non-numeric facts (read `--messages`).
    If "all knowledge" wins at our size, say so and why.
-6. Mark #12 ready for Erez's review.
+4. Mark #12 ready for Erez's review.
 
 **Results:** _pending_
 
