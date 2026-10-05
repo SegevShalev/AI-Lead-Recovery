@@ -27,10 +27,10 @@ Stage 9 in one table (`gpt-4.1-mini` + `text-embedding-3-small`, 18 questions,
 - [ ] **Finish Phase 4's shared seams** (they were always "do together"):
       the **tenant-isolation seam** (two seeded garages end to end, A's price
       never in B's suggestion or `sources`) and the **degrade seam** (bad
-      `EMBEDDING_API_KEY` ⇒ suggestion still comes back, `retrieval.status:
-  "failed"`, dashboard says no knowledge was used). Before the degrade
-      seam, delete `knowledge_chunks`, or it fails on the collection size
-      instead of the key (Track 1 plan, ⚠️ box).
+      `EMBEDDING_API_KEY` ⇒ suggestion still comes back with retrieval
+      status `failed`, and the dashboard says no knowledge was used). Before
+      the degrade seam, delete `knowledge_chunks`, or it fails on the
+      collection size instead of the key (Track 1 plan, ⚠️ box).
 - [ ] **Decide the knowledge strategy.** At our size "all knowledge" beat RAG
       (12 vs 8 answered) for ~$0.0002 more per message, and it can say "we
       don't offer that", which RAG can't. RAG scales to large knowledge bases.
