@@ -151,43 +151,51 @@ describe("InMemoryVectorStore", () => {
   vectorStoreContract(() => new InMemoryVectorStore());
 });
 
-describe.skipIf(!qdrantReachable)("QdrantVectorStore (live, needs docker compose qdrant)", () => {
-  // One collection for the whole contract suite: creating one per test is slow.
-  const shared = newQdrantStore();
-  beforeAll(() => shared.ensureCollection());
-  vectorStoreContract(() => shared);
+// Collection setup may take up to SETUP_TIMEOUT_MS (10 s) per call on a cold
+// Qdrant, so these tests get more than vitest's default 5 s.
+const LIVE_SETUP_TIMEOUT_MS = 30_000;
 
-  it("ensureCollection is safe to call repeatedly", async () => {
-    const store = newQdrantStore();
-    await store.ensureCollection();
-    await expect(store.ensureCollection()).resolves.toBeUndefined();
-  });
+describe.skipIf(!qdrantReachable)(
+  "QdrantVectorStore (live, needs docker compose qdrant)",
+  { timeout: LIVE_SETUP_TIMEOUT_MS },
+  () => {
+    // One collection for the whole contract suite: creating one per test is slow.
+    const shared = newQdrantStore();
+    beforeAll(() => shared.ensureCollection(), LIVE_SETUP_TIMEOUT_MS);
+    vectorStoreContract(() => shared);
 
-  it("fails loudly when the collection was made for different dimensions", async () => {
-    const collection = `test_${randomUUID()}`;
-    await newQdrantStore(4, collection).ensureCollection();
-    const mismatch = newQdrantStore(5, collection).ensureCollection();
-    await expect(mismatch).rejects.toBeInstanceOf(CollectionMismatchError);
-    await expect(mismatch).rejects.toThrow(/embedder changed: delete the collection/);
-  });
+    it("ensureCollection is safe to call repeatedly", async () => {
+      const store = newQdrantStore();
+      await store.ensureCollection();
+      await expect(store.ensureCollection()).resolves.toBeUndefined();
+    });
 
-  it("fails loudly when the collection holds another model's vectors of the same size", async () => {
-    const collection = `test_${randomUUID()}`;
-    // Empty collection: any model may take it over, there is nothing to mix.
-    await newQdrantStore(4, collection, "model-a").ensureCollection();
-    await expect(
-      newQdrantStore(4, collection, "model-b").ensureCollection(),
-    ).resolves.toBeUndefined();
+    it("fails loudly when the collection was made for different dimensions", async () => {
+      const collection = `test_${randomUUID()}`;
+      await newQdrantStore(4, collection).ensureCollection();
+      const mismatch = newQdrantStore(5, collection).ensureCollection();
+      await expect(mismatch).rejects.toBeInstanceOf(CollectionMismatchError);
+      await expect(mismatch).rejects.toThrow(/embedder changed: delete the collection/);
+    });
 
-    const storeA = newQdrantStore(4, collection, "model-a");
-    await storeA.replaceDocument(doc("garage-a", "brakes"), chunks(PRICES));
+    it("fails loudly when the collection holds another model's vectors of the same size", async () => {
+      const collection = `test_${randomUUID()}`;
+      // Empty collection: any model may take it over, there is nothing to mix.
+      await newQdrantStore(4, collection, "model-a").ensureCollection();
+      await expect(
+        newQdrantStore(4, collection, "model-b").ensureCollection(),
+      ).resolves.toBeUndefined();
 
-    await expect(storeA.ensureCollection()).resolves.toBeUndefined();
-    const mismatch = newQdrantStore(4, collection, "model-b").ensureCollection();
-    await expect(mismatch).rejects.toBeInstanceOf(CollectionMismatchError);
-    await expect(mismatch).rejects.toThrow(/holds vectors from "model-a".*"model-b"/);
-  });
-});
+      const storeA = newQdrantStore(4, collection, "model-a");
+      await storeA.replaceDocument(doc("garage-a", "brakes"), chunks(PRICES));
+
+      await expect(storeA.ensureCollection()).resolves.toBeUndefined();
+      const mismatch = newQdrantStore(4, collection, "model-b").ensureCollection();
+      await expect(mismatch).rejects.toBeInstanceOf(CollectionMismatchError);
+      await expect(mismatch).rejects.toThrow(/holds vectors from "model-a".*"model-b"/);
+    });
+  },
+);
 
 describe("QdrantVectorStore (stubbed fetch)", () => {
   const storeWith = (fetchImpl: typeof fetch) =>
