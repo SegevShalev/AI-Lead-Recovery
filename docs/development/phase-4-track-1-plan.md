@@ -21,7 +21,7 @@ I stop after any stage, nothing is broken and nothing is half-wired.
 | 6   | Retriever (reported) ✅          | 5                     | every suggestion returns real `retrieval` info                |
 | 7   | Retrieval eval + tuning ✅       | 6, Erez's #10         | hit-rate table; `k` and `minScore` chosen from numbers        |
 | 8   | Prompt v2 + grounding check ✅   | 6 (7 for real tuning) | invented prices rejected, injected text not followed          |
-| 9   | Three-way comparison 🟡 → **PR** | 7, 8                  | no-knowledge vs all-knowledge vs RAG table in the PR          |
+| 9   | Three-way comparison ✅ → **PR** | 7, 8                  | no-knowledge vs all-knowledge vs RAG table in the PR          |
 
 > **One key for everything (decided 2026-10-05).** No Anthropic API key is
 > available, so **OpenAI does both jobs**: embeddings (`text-embedding-3-small`,
@@ -31,7 +31,8 @@ I stop after any stage, nothing is broken and nothing is half-wired.
 > Phase 3 checklist allowed "Anthropic **or** OpenAI". Tell Erez in #12 that
 > Stage 9's results are GPT's.
 >
-> Next: **Stage 9 run → #12 ready for review.**
+> **Track 1 done (2026-10-05).** Open questions from the results moved to the
+> [Phase 5 checklist](phase-5-checklist.md) as pre-tasks to decide with Erez.
 
 ```
 Build the parts          Store them            Use them                 Prove it
@@ -540,8 +541,7 @@ size, that's a valid result. Record it and why.
   output).
 - The summary prints as a Markdown table, ready to paste into #12.
 
-**Status:** 🟡 runner built and tested (fake models and the mock AI);
-waiting for the real run.
+**Status:** ✅ real run on 2026-10-05 (see Results below).
 
 **Generation provider (added 2026-10-05):** `OpenAISuggestionProvider`
 ([providers/openai.ts](../../services/ai-service/src/providers/openai.ts)), with
@@ -581,7 +581,41 @@ To finish:
    If "all knowledge" wins at our size, say so and why.
 4. Mark #12 ready for Erez's review.
 
-**Results:** _pending_
+**Results (2026-10-05, `gpt-4.1-mini` + `text-embedding-3-small`, RAG at k=3 / minScore 0.4, 54 calls, ~$0.03):**
+
+| mode          | right doc shown | answered | facts stated | other numbers | grounding rejects | degraded | input tok/q | output tok/q |
+| ------------- | --------------- | -------- | ------------ | ------------- | ----------------- | -------- | ----------- | ------------ |
+| no knowledge  | 0/15            | 0/14     | 0/29         | 0             | 3                 | 1        | 818         | 88           |
+| all knowledge | 15/15           | 12/14    | 19/29        | 0             | 0                 | 0        | 1,160       | 93           |
+| rag           | 13/15           | 8/14     | 11/29        | 0             | 0                 | 0        | 781         | 88           |
+
+What it shows (one run of 18 questions, so directional, not final):
+
+- **Knowledge helps a lot:** no knowledge answered 0/14. Both knowledge modes
+  state real prices, hours and policies.
+- **At our size, "all knowledge" beats RAG** (12 vs 8 answered, 19 vs 11
+  facts) for 49% more input tokens (~$0.0002 per message with this model).
+  Each garage has only ~10 short documents. As the checklist said in advance,
+  that's a legitimate result. RAG pays off when a business has many more
+  documents than fit comfortably in a prompt.
+- **Why RAG lost:** 2 retrieval misses (the Stage 7 ones); twice the right
+  document was shown but not used (warranty, test prep); and RAG **can't say
+  "we don't offer that"**. Retrieving nothing doesn't tell the model a service
+  is missing. "All knowledge" sees the whole catalogue, so it said "we
+  specialise in cars, not pizza" and "punctures aren't in our listed
+  services". RAG and no knowledge answered "happy to help with your
+  puncture/pizza".
+- **Safety held:** no number from another garage in any message. Grounding
+  blocked 3 invented prices, and that question degraded instead of inventing.
+- **A prompt v2 problem in every mode:** almost every message opens with
+  "רצינו לוודא שקיבלת את ההודעה/התשובה שלנו" ("we wanted to make sure you got
+  our answer"), although these are unanswered cases. That's an invented fact.
+- **Scoring blind spot:** "facts stated" only counts numbers, so a correct
+  "we're closed on Friday" scores 0, and non-numeric inventions aren't counted.
+
+**Not decided here.** Which strategy to use (all knowledge / RAG / a hybrid
+by knowledge size), the prompt fix and the scoring gaps are
+[Phase 5 pre-tasks](phase-5-checklist.md), to decide with Erez.
 
 **Commit:** `feat(ai-service): add three-way knowledge comparison`
 **Then:** update the #12 description with the results table and mark it
